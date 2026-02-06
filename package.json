@@ -1,0 +1,24 @@
+{
+  "name": "instagram-dm-bot",
+  "version": "1.0.0",
+  "description": "Bot para enviar mensagens diretas no Instagram usando Playwright",
+  "main": "src/instagram-api-server.js",
+  "scripts": {
+    "auth": "node src/instagram-auth-state.js",
+    "send": "node src/instagram-dm-sender.js",
+    "send-by-id": "node src/instagram-dm-sender.js --conversation-id",
+    "send-headless": "node src/instagram-dm-sender.js --headless",
+    "send-by-id-headless": "node src/instagram-dm-sender.js --headless --conversation-id",
+    "send-by-username": "node src/instagram-user-id.js",
+    "send-by-username-headless": "node src/instagram-user-id.js --headless",
+    "start": "node src/instagram-api-server.js",
+    "dev": "nodemon src/instagram-api-server.js"
+  },
+  "dependencies": {
+    "axios": "^1.8.4",
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "playwright": "^1.40.0"
+  }
+}

@@ -150,19 +150,46 @@ async function commentOnPost(shortcode, comment, options = {}) {
     await postButton.click();
     await page.waitForTimeout(4000);
 
-    // 5. Verificar Sucesso
+    // 5. Verificar Sucesso e Erros
+
+    // Checar se apareceu mensagem de erro (Toast/Alert)
+    const errorToast = await page.evaluate(() => {
+      const toast = document.querySelector('div[role="dialog"] h3, div[role="alert"], div.x12lqup9');
+      return toast ? toast.innerText : null;
+    });
+
+    if (errorToast && (errorToast.toLowerCase().includes('tente') || errorToast.toLowerCase().includes('bloqueado') || errorToast.toLowerCase().includes('community'))) {
+      throw new Error(`Instagram bloqueou a ação: ${errorToast}`);
+    }
+
+    // Verificar se comentário aparece na página
     const commentFound = await page.evaluate((cmt) => {
       return document.body.innerText.includes(cmt);
     }, comment);
 
+    // Checar se campo de texto foi limpo (indicativo de sucesso) ou se sumiu
+    const isFieldEmpty = await page.evaluate((selector) => {
+      if (!selector) return true; // Se não capturou seletor, assumimos sucesso pelo fluxo
+      const el = document.querySelector(selector);
+      return el ? el.value === '' : true; // Se sumiu ou tá vazio, é bom sinal
+    }, workingSelector || 'textarea');
+
     await browser.close();
+
+    // Critério de sucesso: Achou o texto OU (Não achou erro E Campo limpou)
+    const success = commentFound || isFieldEmpty;
+
+    if (!success) {
+      throw new Error('O comentário não apareceu e o campo de texto não foi limpo. Provável falha silenciosa.');
+    }
 
     return {
       success: true,
-      message: 'Comentário enviado!',
+      message: commentFound ? 'Comentário publicado e verificado!' : 'Comentário enviado (campo limpo), mas não visualizado imediatamente.',
       verified: commentFound,
       postUrl,
-      shortcode
+      shortcode,
+      warning: !commentFound ? 'Comentário não encontrado visualmente, verificar no App.' : null
     };
 
   } catch (error) {

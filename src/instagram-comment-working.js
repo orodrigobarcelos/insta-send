@@ -24,111 +24,142 @@ async function commentOnPost(shortcode, comment, options = {}) {
   const headless = options.headless !== undefined ? options.headless : false;
   const slowMo = options.slowMo !== undefined ? options.slowMo : 100;
 
-  const browser = await chromium.launch({ 
+  const browser = await chromium.launch({
     headless,
     slowMo
   });
 
+  // Forçar locale para pt-BR para garantir que os textos de UI sejam previsíveis
   const context = await browser.newContext({
-    storageState: AUTH_FILE
+    storageState: AUTH_FILE,
+    locale: 'pt-BR'
   });
 
   const page = await context.newPage();
 
   try {
+    // 1. Acessar Post
     const postUrl = `https://www.instagram.com/p/${shortcode}/`;
     console.log(`Acessando: ${postUrl}`);
     await page.goto(postUrl);
 
-    // Aguardar carregamento
-    await page.waitForTimeout(5000);
+    // Aguardar carregamento (fixo + seletor de conteúdo)
+    await page.waitForTimeout(4000);
+    try {
+      await page.waitForSelector('article', { timeout: 5000 });
+    } catch (e) { console.log('Artigo não detectado imediatamente...'); }
 
-    // Procurar campo de comentário em português
+    // 2. Encontrar Campo de Comentário
     console.log('Procurando campo de comentário...');
-    
-    // Tentar múltiplos seletores
-    const selectors = [
-      'textarea[placeholder="Adicionar um comentário..."]',
-      'textarea[placeholder="Add a comment..."]',
-      'textarea[aria-label="Adicionar um comentário..."]',
-      'textarea[aria-label="Add a comment..."]',
+
+    const commentSelectors = [
+      'textarea[placeholder="Adicione um comentário..."]',
+      'textarea[aria-label="Adicione um comentário..."]',
+      'form[role="presentation"] textarea',
       'textarea'
     ];
 
     let commentField = null;
-    for (const selector of selectors) {
+    let workingSelector = null;
+
+    for (const selector of commentSelectors) {
       try {
-        commentField = await page.waitForSelector(selector, { timeout: 5000 });
+        commentField = await page.$(selector);
         if (commentField) {
           console.log(`Campo encontrado com: ${selector}`);
+          workingSelector = selector;
           break;
         }
-      } catch (e) {
-        continue;
-      }
+      } catch (e) { continue; }
+    }
+
+    // Fallback via evaluate se não achar por seletor
+    if (!commentField) {
+      console.log('Tentando encontrar via evaluateHandle...');
+      commentField = await page.evaluateHandle(() => {
+        const textareas = Array.from(document.querySelectorAll('textarea'));
+        return textareas.find(t =>
+          t.placeholder?.includes('coment') ||
+          t.getAttribute('aria-label')?.includes('coment')
+        ) || textareas[0];
+      });
     }
 
     if (!commentField) {
       throw new Error('Campo de comentário não encontrado');
     }
 
-    // Clicar no campo primeiro
-    console.log('Clicando no campo...');
-    await commentField.click();
-    await page.waitForTimeout(1000);
+    // 3. Interagir e Digitar (Lidar com Detached Element)
+    try {
+      await commentField.click();
+      await page.waitForTimeout(1000); // Wait for react re-render
+    } catch (e) {
+      console.log('Erro ao clicar (pode já estar focado/detached):', e.message);
+    }
 
-    // Limpar campo e digitar - SEM usar fill()
-    console.log('Digitando comentário...');
-    await page.keyboard.press('Control+a'); // Selecionar tudo
-    await page.keyboard.press('Delete'); // Deletar
-    await page.keyboard.type(comment, { delay: 50 }); // Digitar
+    console.log(`Digitando: "${comment}"`);
 
-    await page.waitForTimeout(1500);
+    if (workingSelector) {
+      // Mais seguro: re-query do seletor
+      await page.fill(workingSelector, comment);
+    } else {
+      // Fallback: digitar no teclado (foco deve estar lá)
+      try {
+        await commentField.fill(comment);
+      } catch (e) {
+        console.log('Elemento detached, tentando keyboard stroke...');
+        await page.keyboard.type(comment);
+      }
+    }
 
-    // Procurar botão Postar
-    console.log('Procurando botão Postar...');
-    
+    await page.waitForTimeout(2000);
+
+    // 4. Clicar em Publicar
+    console.log('Procurando botão Publicar...');
+
     const buttonSelectors = [
-      'button:has-text("Postar")',
-      'button:has-text("Post")',
+      'div[role="button"]:has-text("Publicar")',
+      'button:has-text("Publicar")',
       'div[role="button"]:has-text("Postar")',
-      'div[role="button"]:has-text("Post")'
+      'button:has-text("Postar")',
+      'form button[type="submit"]',
+      'button[type="submit"]',
+      'div.x1i10hfl[role="button"]' // Classe comum
     ];
 
     let postButton = null;
     for (const selector of buttonSelectors) {
-      try {
-        postButton = await page.waitForSelector(selector, { timeout: 3000 });
-        if (postButton) {
-          console.log(`Botão encontrado com: ${selector}`);
-          break;
-        }
-      } catch (e) {
-        continue;
+      postButton = await page.$(selector);
+      if (postButton) {
+        console.log(`Botão encontrado: ${selector}`);
+        break;
       }
     }
 
     if (!postButton) {
-      throw new Error('Botão Postar não encontrado');
+      // Última tentativa: evaluate
+      const handle = await page.evaluateHandle(() => {
+        const els = Array.from(document.querySelectorAll('div[role="button"], button'));
+        return els.find(el => ['publicar', 'postar'].includes(el.textContent.trim().toLowerCase()));
+      });
+      if (handle) postButton = handle.asElement();
     }
 
-    console.log('Clicando em Postar...');
+    if (!postButton) throw new Error('Botão de publicar não encontrado');
+
     await postButton.click();
+    await page.waitForTimeout(4000);
 
-    // Aguardar envio
-    await page.waitForTimeout(3000);
-
-    // Verificar se comentário aparece
+    // 5. Verificar Sucesso
     const commentFound = await page.evaluate((cmt) => {
-      const elements = Array.from(document.querySelectorAll('span, div'));
-      return elements.some(el => el.textContent && el.textContent.includes(cmt));
+      return document.body.innerText.includes(cmt);
     }, comment);
 
     await browser.close();
 
     return {
       success: true,
-      message: `Comentário enviado no post ${shortcode}`,
+      message: 'Comentário enviado!',
       verified: commentFound,
       postUrl,
       shortcode
@@ -136,10 +167,8 @@ async function commentOnPost(shortcode, comment, options = {}) {
 
   } catch (error) {
     console.error('Erro:', error.message);
-
     const screenshotPath = path.join(__dirname, 'error-working-approach.png');
     await page.screenshot({ path: screenshotPath });
-
     await browser.close();
 
     return {
@@ -148,7 +177,7 @@ async function commentOnPost(shortcode, comment, options = {}) {
       screenshotPath,
       postUrl: `https://www.instagram.com/p/${shortcode}/`,
       shortcode
-    };
+    }
   }
 }
 

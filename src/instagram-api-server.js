@@ -177,9 +177,6 @@ app.post('/api/instagram-login', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Username e senha sao obrigatorios.' });
     }
 
-    // Responder imediatamente pra nao dar timeout no request
-    // O login roda em background
-
     // Limpar sessao anterior se existir
     clearLoginSession();
 
@@ -191,50 +188,52 @@ app.post('/api/instagram-login', async (req, res) => {
     const page = await context.newPage();
     await setupResourceBlocking(page);
 
-    // 1. Acessar pagina de login
+    // 1. Acessar pagina de login do Instagram
     await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'domcontentloaded', timeout: 60000 });
-    console.log('Pagina de login carregada, aguardando campos...');
+    console.log('Pagina carregada, aguardando elementos...');
+    await page.waitForTimeout(5000);
 
-    // 2. Aceitar cookies se aparecer banner
-    await page.waitForTimeout(3000);
-    const cookieBtn = await page.$('button:has-text("Allow"), button:has-text("Permitir"), button:has-text("Accept")');
-    if (cookieBtn) {
-      console.log('Banner de cookies detectado, aceitando...');
-      await cookieBtn.click();
-      await page.waitForTimeout(2000);
-    }
-
-    // 3. Esperar campos de login aparecerem (ate 60s)
+    // 2. Esperar por qualquer campo de senha ou username (ate 60s)
     try {
-      await page.waitForSelector('input[name="username"]', { timeout: 60000 });
+      await page.waitForSelector('input[type="password"], input[name="username"], input[name="password"]', { timeout: 60000 });
+      console.log('Campo de login encontrado!');
     } catch (e) {
-      console.log('Campos de login nao apareceram. Tirando screenshot...');
-      const screenshot = await page.screenshot();
-      await browser.close();
-      // Salvar screenshot pra debug
+      console.log('Campos nao apareceram. Tirando screenshot...');
       const fs = require('fs');
-      const path = require('path');
-      fs.writeFileSync(path.join(__dirname, 'login-debug.png'), screenshot);
-      return res.status(400).json({ success: false, error: 'Pagina de login nao carregou. Verifique os logs e /api/debug-screenshot.' });
+      const pathMod = require('path');
+      fs.writeFileSync(pathMod.join(__dirname, 'login-debug.png'), await page.screenshot());
+      await browser.close();
+      return res.status(400).json({ success: false, error: 'Campos de login nao encontrados. Tente novamente.' });
     }
 
+    // 3. Preencher username se o campo existir
     const usernameField = await page.$('input[name="username"]');
-    const passwordField = await page.$('input[name="password"]');
+    if (usernameField) {
+      console.log('Campo de username encontrado, preenchendo...');
+      await usernameField.fill(username);
+      await page.waitForTimeout(500);
+    }
 
-    await usernameField.fill(username);
-    await page.waitForTimeout(500);
-    await passwordField.fill(password);
-    await page.waitForTimeout(1000);
+    // 4. Preencher senha
+    const passwordField = await page.$('input[type="password"], input[name="password"]');
+    if (passwordField) {
+      console.log('Campo de senha encontrado, preenchendo...');
+      await passwordField.fill(password);
+      await page.waitForTimeout(1000);
+    } else {
+      await browser.close();
+      return res.status(400).json({ success: false, error: 'Campo de senha nao encontrado.' });
+    }
 
-    // 3. Clicar em Entrar
-    const loginBtn = await page.$('button[type="submit"]');
+    // 5. Clicar em Entrar/Log In
+    const loginBtn = await page.$('button:has-text("Entrar"), button:has-text("Log in"), button:has-text("Log In"), button[type="submit"]');
     if (loginBtn) {
       await loginBtn.click();
       console.log('Clicou em Entrar, aguardando resposta...');
-      await page.waitForTimeout(8000);
+      await page.waitForTimeout(10000);
     }
 
-    // 4. Verificar se deu erro de senha
+    // 6. Verificar erro de senha
     const loginError = await page.evaluate(() => {
       const el = document.querySelector('#slfErrorAlert, [role="alert"]');
       return el ? el.textContent : null;

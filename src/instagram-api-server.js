@@ -108,6 +108,146 @@ app.post('/api/setup-railway', async (req, res) => {
   }
 });
 
+// Endpoint de login - faz login no Instagram e salva sessao na Railway (sem auth)
+app.post('/api/instagram-login', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ success: false, error: 'Token da Railway e senha do Instagram sao obrigatorios.' });
+    }
+
+    const { launchBrowser, setupResourceBlocking } = require('./browser-config');
+    const { getAuthFilePath } = require('./instagram-auth-state');
+    const fs = require('fs');
+    const AUTH_FILE = getAuthFilePath();
+
+    // Verificar se ja temos cookies (do Cookie-Editor)
+    if (!fs.existsSync(AUTH_FILE)) {
+      return res.status(400).json({ success: false, error: 'Cookies do Instagram nao encontrados. Configure primeiro pelo frontend.' });
+    }
+
+    console.log('Iniciando login no Instagram...');
+    const browser = await launchBrowser({ headless: true, slowMo: 100 });
+    const context = await browser.newContext({ storageState: AUTH_FILE, locale: 'pt-BR' });
+    const page = await context.newPage();
+    await setupResourceBlocking(page);
+
+    // 1. Acessar Instagram
+    await page.goto('https://www.instagram.com/');
+    await page.waitForTimeout(5000);
+
+    // 2. Clicar em "Continuar" se aparecer
+    const continueBtn = await page.$('button:has-text("Continuar"), div[role="button"]:has-text("Continuar")');
+    if (continueBtn) {
+      console.log('Clicando em "Continuar"...');
+      await continueBtn.click();
+      await page.waitForTimeout(5000);
+    }
+
+    // 3. Preencher senha se pedir
+    const passwordField = await page.$('input[type="password"]');
+    if (passwordField) {
+      console.log('Campo de senha detectado, preenchendo...');
+      await passwordField.fill(password);
+      await page.waitForTimeout(1000);
+
+      // Clicar em "Entrar"
+      const loginBtn = await page.$('button:has-text("Entrar"), button[type="submit"]');
+      if (loginBtn) {
+        await loginBtn.click();
+        console.log('Clicou em Entrar, aguardando...');
+        await page.waitForTimeout(10000);
+      }
+    }
+
+    // 4. Tratar tela "Salvar informacoes de login"
+    const saveInfoBtn = await page.$('button:has-text("Agora não"), button:has-text("Not Now")');
+    if (saveInfoBtn) {
+      console.log('Tela "Salvar informacoes" — clicando "Agora não"...');
+      await saveInfoBtn.click();
+      await page.waitForTimeout(3000);
+    }
+
+    // 5. Tratar tela de notificacoes
+    const notifBtn = await page.$('button:has-text("Agora não"), button:has-text("Not Now")');
+    if (notifBtn) {
+      await notifBtn.click();
+      await page.waitForTimeout(3000);
+    }
+
+    // 6. Verificar se logou com sucesso
+    const isLoggedIn = await page.evaluate(() => {
+      return !document.querySelector('input[type="password"]') && !document.querySelector('input[name="username"]');
+    });
+
+    if (!isLoggedIn) {
+      const screenshot = await page.screenshot();
+      await browser.close();
+      res.set('Content-Type', 'image/png');
+      return res.status(401).send(screenshot);
+    }
+
+    // 7. Salvar sessao completa
+    console.log('Login bem-sucedido! Salvando sessao...');
+    const storageState = await context.storageState();
+    await browser.close();
+
+    // 8. Salvar localmente
+    fs.writeFileSync(AUTH_FILE, JSON.stringify(storageState));
+
+    // 9. Salvar na Railway como INSTAGRAM_AUTH_DATA (se token fornecido)
+    const base64 = Buffer.from(JSON.stringify(storageState)).toString('base64');
+
+    const RAILWAY_API = 'https://backboard.railway.com/graphql/v2';
+
+    // Obter IDs do token
+    const tokenRes = await fetch(RAILWAY_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Project-Access-Token': token },
+      body: JSON.stringify({ query: '{ projectToken { projectId environmentId } }' })
+    });
+    const tokenData = await tokenRes.json();
+    if (tokenData.errors) {
+      return res.json({ success: true, warning: 'Login OK mas falhou ao salvar na Railway: ' + tokenData.errors.map(e => e.message).join(', ') });
+    }
+
+    const { projectId, environmentId } = tokenData.data.projectToken;
+
+    // Obter serviceId
+    const servicesRes = await fetch(RAILWAY_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Project-Access-Token': token },
+      body: JSON.stringify({
+        query: 'query($projectId: String!) { project(id: $projectId) { services { edges { node { id } } } } }',
+        variables: { projectId }
+      })
+    });
+    const servicesData = await servicesRes.json();
+    const serviceId = servicesData.data?.project?.services?.edges?.[0]?.node?.id || null;
+
+    // Salvar INSTAGRAM_AUTH_DATA
+    const input = { projectId, environmentId, name: 'INSTAGRAM_AUTH_DATA', value: base64 };
+    if (serviceId) input.serviceId = serviceId;
+
+    await fetch(RAILWAY_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Project-Access-Token': token },
+      body: JSON.stringify({
+        query: 'mutation($input: VariableUpsertInput!) { variableUpsert(input: $input) }',
+        variables: { input }
+      })
+    });
+
+    console.log('Sessao salva na Railway com sucesso!');
+    return res.json({ success: true, message: 'Login realizado e sessao salva na Railway!' });
+
+  } catch (error) {
+    console.error('Erro no login:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Health check (sem auth)
 app.get('/api/health', (req, res) => {
   res.json({

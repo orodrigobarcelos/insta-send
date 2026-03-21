@@ -318,6 +318,24 @@
       <h2>Variaveis configuradas</h2>
       <div id="savedVars" class="saved-vars"></div>
     </div>
+
+    <!-- ETAPA 2: LOGIN -->
+    <div id="loginSection" class="section" style="display:none;">
+      <h2>Ativar sessao do Instagram</h2>
+      <p class="subtitle" style="margin-bottom: 16px;">O Instagram pede a senha na primeira vez que acessa de um servidor novo. Digite sua senha abaixo — ela sera usada <strong>uma unica vez</strong> para fazer login e <strong>nao sera armazenada</strong>.</p>
+
+      <div id="loginError" class="error"></div>
+
+      <label for="igPassword">Senha do Instagram</label>
+      <input type="password" id="igPassword" placeholder="Sua senha do Instagram">
+      <p class="hint">Usada apenas uma vez via HTTPS. Nao e salva em nenhum lugar.</p>
+
+      <button class="btn" id="loginBtn" onclick="doInstagramLogin()">Ativar Sessao</button>
+
+      <div id="loginResult" class="result-section">
+        <div class="success-banner" id="loginResultBanner"></div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -481,12 +499,68 @@
           data.saved.map(n => `<span>${n}</span>`).join('<br>');
 
         document.getElementById('resultSection').classList.add('visible');
-        document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+
+        // Mostrar etapa de login
+        document.getElementById('loginSection').style.display = 'block';
+        document.getElementById('loginSection').scrollIntoView({ behavior: 'smooth' });
 
       } catch (e) {
         showError(`Erro ao salvar na Railway: ${e.message}`);
       } finally {
         setLoading(false);
+      }
+    }
+
+    async function doInstagramLogin() {
+      const loginError = document.getElementById('loginError');
+      loginError.classList.remove('visible');
+
+      const password = document.getElementById('igPassword').value;
+      const token = document.getElementById('railwayToken').value.trim();
+
+      if (!password) {
+        loginError.textContent = 'Digite sua senha do Instagram.';
+        loginError.classList.add('visible');
+        return;
+      }
+
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loading"></span>Fazendo login no Instagram... (pode levar ate 1 min)';
+
+      try {
+        const res = await fetch('/api/instagram-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, password })
+        });
+
+        // Se retornou imagem, é screenshot de erro
+        const contentType = res.headers.get('Content-Type');
+        if (contentType && contentType.includes('image')) {
+          loginError.textContent = 'Login falhou. Verifique sua senha ou se o Instagram pede verificacao extra (2FA, SMS, etc).';
+          loginError.classList.add('visible');
+          return;
+        }
+
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error);
+        }
+
+        document.getElementById('loginResult').classList.add('visible');
+        document.getElementById('loginResultBanner').textContent = data.message;
+
+        // Limpar campo de senha
+        document.getElementById('igPassword').value = '';
+
+      } catch (e) {
+        loginError.textContent = `Erro: ${e.message}`;
+        loginError.classList.add('visible');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Ativar Sessao';
       }
     }
   </script>

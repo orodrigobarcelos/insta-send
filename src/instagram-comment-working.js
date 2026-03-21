@@ -44,7 +44,7 @@ async function commentOnPost(shortcode, comment, options = {}) {
     // Aguardar carregamento (fixo + seletor de conteúdo)
     await page.waitForTimeout(4000);
     try {
-      await page.waitForSelector('article', { timeout: 5000 });
+      await page.waitForSelector('article', { timeout: 180000 });
     } catch (e) { console.log('Artigo não detectado imediatamente...'); }
 
     // 2. Encontrar Campo de Comentário

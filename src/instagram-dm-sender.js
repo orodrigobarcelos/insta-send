@@ -44,14 +44,14 @@ async function sendDirectMessage(username, message, options = {}) {
     await page.goto('https://www.instagram.com/direct/inbox/');
     
     // Esperar a página carregar
-    await page.waitForSelector('svg[aria-label="Nova mensagem"]', { timeout: 30000 });
+    await page.waitForSelector('svg[aria-label="Nova mensagem"]', { timeout: 180000 });
     
     // Clicar no botão de nova mensagem
     console.log('Clicando no botão de nova mensagem...');
     await page.click('svg[aria-label="Nova mensagem"]');
     
     // Esperar o modal de busca aparecer
-    await page.waitForSelector('input[placeholder="Pesquisar..."]', { timeout: 10000 });
+    await page.waitForSelector('input[placeholder="Pesquisar..."]', { timeout: 180000 });
     
     // Digitar o nome de usuário
     console.log(`Buscando usuário: @${username}...`);
@@ -88,13 +88,13 @@ async function sendDirectMessage(username, message, options = {}) {
     console.log('Selecionando usuário e iniciando conversa...');
     
     // Esperar o botão "Chat" ou "Próximo" aparecer
-    await page.waitForSelector('button[tabindex="0"]', { timeout: 5000 });
+    await page.waitForSelector('button[tabindex="0"]', { timeout: 180000 });
     
     // Clicar no botão (pode ser "Chat" ou "Próximo" dependendo da interface)
     await page.click('button[tabindex="0"]');
     
     // Esperar a página de conversa carregar
-    await page.waitForSelector('div[contenteditable="true"]', { timeout: 10000 });
+    await page.waitForSelector('div[contenteditable="true"]', { timeout: 180000 });
     
     // Digitar a mensagem
     console.log(`Digitando mensagem: "${message}"`);
@@ -223,7 +223,7 @@ async function sendMessageToConversation(conversationId, message, options = {}) 
     await page.goto(conversationUrl);
     
     // Esperar a página de conversa carregar (campo de mensagem)
-    await page.waitForSelector('div[contenteditable="true"]', { timeout: 30000 });
+    await page.waitForSelector('div[contenteditable="true"]', { timeout: 180000 });
     
     // Digitar a mensagem
     console.log(`Digitando mensagem: "${message}"`);

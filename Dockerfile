@@ -2,6 +2,7 @@
 FROM mcr.microsoft.com/playwright:v1.51.1-jammy
 
 # Instalar dependencias para display virtual + VNC + noVNC
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     x11vnc \

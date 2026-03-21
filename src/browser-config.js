@@ -33,7 +33,7 @@ async function launchBrowser(options = {}) {
  * @param {Page} page - Pagina do Playwright
  */
 async function setupResourceBlocking(page) {
-  await page.route('**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,mp4,webm}', route => route.abort());
+  await page.route('**/*.{png,jpg,jpeg,gif,webp,mp4,webm}', route => route.abort());
 }
 
 module.exports = { launchBrowser, setupResourceBlocking };

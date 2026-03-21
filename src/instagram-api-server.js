@@ -116,6 +116,38 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Debug: abre uma URL do Instagram e retorna screenshot (sem auth)
+app.get('/api/debug-screenshot', async (req, res) => {
+  try {
+    const url = req.query.url || 'https://www.instagram.com/';
+    const { launchBrowser, setupResourceBlocking } = require('./browser-config');
+    const { getAuthFilePath } = require('./instagram-auth-state');
+    const fs = require('fs');
+    const AUTH_FILE = getAuthFilePath();
+
+    if (!fs.existsSync(AUTH_FILE)) {
+      return res.status(500).json({ success: false, error: 'Auth file nao encontrado' });
+    }
+
+    const browser = await launchBrowser({ headless: true });
+    const context = await browser.newContext({ storageState: AUTH_FILE, locale: 'pt-BR' });
+    const page = await context.newPage();
+    await setupResourceBlocking(page);
+    await page.goto(url);
+    await page.waitForTimeout(8000);
+
+    const screenshot = await page.screenshot({ fullPage: false });
+    const pageTitle = await page.title();
+    const pageUrl = page.url();
+    await browser.close();
+
+    res.set('Content-Type', 'image/png');
+    res.send(screenshot);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Verificar IP do proxy (sem auth)
 app.get('/api/check-ip', async (req, res) => {
   try {

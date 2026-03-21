@@ -130,6 +130,11 @@
     .btn:hover {
       background: #1d4ed8;
     }
+    .btn:disabled {
+      background: #1e3a5f;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
     .btn-sm {
       padding: 10px 16px;
       font-size: 13px;
@@ -150,49 +155,6 @@
     }
     .result-section.visible {
       display: block;
-    }
-    .env-var {
-      background: #0a0a0a;
-      border: 1px solid #222;
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .env-var-content {
-      flex: 1;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 11px;
-      word-break: break-all;
-      color: #4ade80;
-      max-height: 60px;
-      overflow: hidden;
-    }
-    .env-var-name {
-      color: #60a5fa;
-      font-weight: 600;
-    }
-    .copy-btn {
-      background: #222;
-      border: 1px solid #333;
-      color: #aaa;
-      border-radius: 6px;
-      padding: 6px 12px;
-      cursor: pointer;
-      font-size: 12px;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    .copy-btn:hover {
-      background: #333;
-      color: #fff;
-    }
-    .copy-btn.copied {
-      background: #166534;
-      border-color: #22c55e;
-      color: #4ade80;
     }
     .error {
       background: #1c0a0a;
@@ -228,6 +190,29 @@
       color: #666;
       margin-top: -12px;
       margin-bottom: 16px;
+    }
+    .loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #fff;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .saved-vars {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: #4ade80;
+      line-height: 1.8;
+    }
+    .saved-vars span {
+      color: #60a5fa;
     }
     @media (max-width: 600px) {
       .field-row, .field-row-4 {
@@ -282,6 +267,12 @@
 
       <div id="error" class="error"></div>
 
+      <label for="railwayToken">Token do Projeto Railway</label>
+      <input type="password" id="railwayToken" placeholder="Cole o token gerado em Project Settings > Tokens">
+      <p class="hint">Gere em: Railway > seu projeto > Settings > Tokens > Create</p>
+
+      <hr class="divider">
+
       <label for="cookies">Cookies do Instagram (JSON do Cookie-Editor)</label>
       <textarea id="cookies" placeholder='Cole aqui o JSON exportado do Cookie-Editor...'></textarea>
 
@@ -318,22 +309,20 @@
         </div>
       </div>
 
-      <button class="btn" onclick="generateConfig()">Gerar Configuracao</button>
+      <button class="btn" id="saveBtn" onclick="saveToRailway()">Salvar na Railway</button>
     </div>
 
     <!-- RESULTADO -->
     <div id="resultSection" class="section result-section">
-      <div class="success-banner">Configuracao gerada com sucesso!</div>
-      <h2>Variaveis de Ambiente para a Railway</h2>
-      <p class="subtitle" style="margin-bottom: 16px;">Copie cada variavel e cole na aba <strong>Variables</strong> do seu projeto na Railway</p>
-
-      <div id="envVars"></div>
-
-      <button class="btn" onclick="copyAll()" style="margin-top: 12px;">Copiar Tudo</button>
+      <div class="success-banner" id="resultBanner"></div>
+      <h2>Variaveis configuradas</h2>
+      <div id="savedVars" class="saved-vars"></div>
     </div>
   </div>
 
   <script>
+    const RAILWAY_API = 'https://backboard.railway.com/graphql/v2';
+
     function generateApiKey() {
       const array = new Uint8Array(32);
       crypto.getRandomValues(array);
@@ -378,7 +367,6 @@
         throw new Error('Nenhum cookie do Instagram encontrado. Certifique-se de estar na pagina do Instagram ao exportar.');
       }
 
-      // Verificar se tem os cookies essenciais
       const essentialCookies = ['sessionid', 'csrftoken', 'ds_user_id'];
       const found = essentialCookies.filter(name =>
         playwrightCookies.some(c => c.name === name)
@@ -404,9 +392,40 @@
       document.getElementById('error').classList.remove('visible');
     }
 
-    function generateConfig() {
+    function setLoading(loading) {
+      const btn = document.getElementById('saveBtn');
+      if (loading) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading"></span>Salvando na Railway...';
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Salvar na Railway';
+      }
+    }
+
+    async function railwayQuery(token, query, variables = {}) {
+      const res = await fetch(RAILWAY_API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Project-Access-Token': token
+        },
+        body: JSON.stringify({ query, variables })
+      });
+
+      const data = await res.json();
+
+      if (data.errors) {
+        throw new Error(data.errors.map(e => e.message).join(', '));
+      }
+
+      return data.data;
+    }
+
+    async function saveToRailway() {
       hideError();
 
+      const token = document.getElementById('railwayToken').value.trim();
       const cookiesRaw = document.getElementById('cookies').value.trim();
       const rapidApiKey = document.getElementById('rapidApiKey').value.trim();
       const apiKey = document.getElementById('apiKey').value.trim();
@@ -416,6 +435,11 @@
       const proxyPass = document.getElementById('proxyPass').value.trim();
 
       // Validacoes
+      if (!token) {
+        showError('Informe o Token do Projeto Railway.');
+        return;
+      }
+
       if (!cookiesRaw) {
         showError('Cole o JSON dos cookies do Instagram.');
         return;
@@ -440,63 +464,61 @@
         return;
       }
 
-      // Gerar base64 do storageState
+      // Gerar base64
       const storageStateJson = JSON.stringify(storageState);
       const base64 = btoa(unescape(encodeURIComponent(storageStateJson)));
 
       // Montar variaveis
-      const envVars = [
-        { name: 'INSTAGRAM_AUTH_DATA', value: base64 },
-        { name: 'RAPIDAPI_KEY', value: rapidApiKey },
-        { name: 'API_KEY', value: apiKey }
-      ];
+      const envVars = {
+        INSTAGRAM_AUTH_DATA: base64,
+        RAPIDAPI_KEY: rapidApiKey,
+        API_KEY: apiKey
+      };
 
-      if (proxyHost) envVars.push({ name: 'PROXY_HOST', value: proxyHost });
-      if (proxyPort) envVars.push({ name: 'PROXY_PORT', value: proxyPort });
-      if (proxyUser) envVars.push({ name: 'PROXY_USER', value: proxyUser });
-      if (proxyPass) envVars.push({ name: 'PROXY_PASS', value: proxyPass });
+      if (proxyHost) envVars.PROXY_HOST = proxyHost;
+      if (proxyPort) envVars.PROXY_PORT = proxyPort;
+      if (proxyUser) envVars.PROXY_USER = proxyUser;
+      if (proxyPass) envVars.PROXY_PASS = proxyPass;
 
-      // Renderizar resultado
-      const container = document.getElementById('envVars');
-      container.innerHTML = envVars.map((v, i) => `
-        <div class="env-var">
-          <div class="env-var-content">
-            <span class="env-var-name">${v.name}</span>=<span>${v.name === 'INSTAGRAM_AUTH_DATA' ? v.value.substring(0, 80) + '...' : v.value}</span>
-          </div>
-          <button class="copy-btn" onclick="copyVar(${i}, this)" data-value="${escapeAttr(v.value)}" data-name="${v.name}">Copiar</button>
-        </div>
-      `).join('');
+      setLoading(true);
 
-      // Salvar para copyAll
-      window._envVars = envVars;
+      try {
+        // 1. Obter projectId e environmentId do token
+        const tokenData = await railwayQuery(token, '{ projectToken { projectId environmentId } }');
+        const { projectId, environmentId } = tokenData.projectToken;
 
-      document.getElementById('resultSection').classList.add('visible');
-      document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
-    }
+        // 2. Setar variaveis uma a uma (mais compativel com project tokens)
+        const savedNames = [];
+        for (const [name, value] of Object.entries(envVars)) {
+          await railwayQuery(token,
+            `mutation($input: VariableUpsertInput!) { variableUpsert(input: $input) }`,
+            {
+              input: {
+                projectId,
+                environmentId,
+                name,
+                value
+              }
+            }
+          );
+          savedNames.push(name);
+        }
 
-    function escapeAttr(str) {
-      return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
+        // 3. Mostrar sucesso
+        document.getElementById('resultBanner').textContent =
+          `${savedNames.length} variaveis salvas na Railway com sucesso!`;
 
-    function copyVar(index, btn) {
-      const v = window._envVars[index];
-      navigator.clipboard.writeText(v.value).then(() => {
-        btn.textContent = 'Copiado!';
-        btn.classList.add('copied');
-        setTimeout(() => {
-          btn.textContent = 'Copiar';
-          btn.classList.remove('copied');
-        }, 2000);
-      });
-    }
+        document.getElementById('savedVars').innerHTML =
+          savedNames.map(n => `<span>${n}</span>`).join('<br>');
 
-    function copyAll() {
-      const text = window._envVars.map(v => `${v.name}=${v.value}`).join('\n');
-      navigator.clipboard.writeText(text).then(() => {
-        const btn = event.target;
-        btn.textContent = 'Copiado!';
-        setTimeout(() => { btn.textContent = 'Copiar Tudo'; }, 2000);
-      });
+        document.getElementById('resultSection').classList.add('visible');
+        document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+
+      } catch (e) {
+        showError(`Erro ao salvar na Railway: ${e.message}`);
+      } finally {
+        setLoading(false);
+      }
     }
   </script>
 </body>

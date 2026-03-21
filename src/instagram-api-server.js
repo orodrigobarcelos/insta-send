@@ -264,9 +264,14 @@ app.post('/api/instagram-login', async (req, res) => {
       return res.status(401).json({ success: false, error: loginError });
     }
 
-    // 5. Verificar se pede 2FA
+    // 7. Verificar se pede 2FA
     const has2FA = await page.evaluate(() => {
-      return !!document.querySelector('input[name="verificationCode"], input[name="security_code"], input[aria-label*="Security"], input[aria-label*="erifica"]');
+      // Buscar por seletores conhecidos
+      const field = document.querySelector('input[name="verificationCode"], input[name="security_code"], input[aria-label*="Security"], input[aria-label*="erifica"], input[aria-label*="segurança"], input[autocomplete="one-time-code"]');
+      if (field) return true;
+      // Buscar pelo texto da pagina
+      const text = document.body.innerText.toLowerCase();
+      return text.includes('código de segurança') || text.includes('security code') || text.includes('autenticação') || text.includes('two-factor');
     });
 
     if (has2FA) {
@@ -326,7 +331,7 @@ app.post('/api/instagram-2fa', async (req, res) => {
     console.log(`Inserindo codigo 2FA: ${code}`);
 
     // 1. Preencher codigo
-    const codeField = await page.$('input[name="verificationCode"], input[name="security_code"], input[aria-label*="Security"], input[aria-label*="erifica"]');
+    const codeField = await page.$('input[name="verificationCode"], input[name="security_code"], input[aria-label*="Security"], input[aria-label*="erifica"], input[aria-label*="segurança"], input[autocomplete="one-time-code"]');
     if (!codeField) {
       clearLoginSession();
       return res.status(400).json({ success: false, error: 'Campo de 2FA nao encontrado. Tente fazer login novamente.' });

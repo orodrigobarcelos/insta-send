@@ -9,7 +9,7 @@ sleep 2
 
 # 2. Iniciar x11vnc (VNC server, porta interna 5900)
 echo "[startup] Iniciando x11vnc na porta 5900..."
-x11vnc -display :99 -forever -nopw -shared -rfbport 5900 -noxdamage -threads -ncache 10 -speeds dsl &
+x11vnc -display :99 -forever -nopw -shared -rfbport 5900 -noxdamage -threads &
 sleep 1
 
 # 3. Iniciar websockify (porta interna 6080, bridge VNC→WebSocket)

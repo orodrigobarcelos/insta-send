@@ -135,7 +135,7 @@
 
       <div id="loginError" class="error"></div>
 
-      <button class="btn btn-green" id="openBrowserBtn" onclick="startVisualLogin()">Abrir Navegador para Login</button>
+      <button class="btn btn-green" id="openBrowserBtn" onclick="startVisualLogin()">Abrir navegador para login</button>
     </div>
 
     <!-- VIEWER noVNC -->
@@ -258,7 +258,7 @@
         user: document.getElementById('proxyUser').value.trim(),
         pass: document.getElementById('proxyPass').value.trim()
       };
-      setBtn('openBrowserBtn', true, 'Abrir Navegador para Login', 'Abrindo navegador...');
+      setBtn('openBrowserBtn', true, 'Abrir navegador para login', 'Abrindo navegador...');
 
       try {
         const res = await fetch('/api/start-visual-login', {
@@ -281,7 +281,7 @@
       } catch (e) {
         showError('loginError', `Erro: ${e.message}`);
       } finally {
-        setBtn('openBrowserBtn', false, 'Abrir Navegador para Login', '');
+        setBtn('openBrowserBtn', false, 'Abrir navegador para login', '');
       }
     }
 

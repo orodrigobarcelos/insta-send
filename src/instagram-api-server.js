@@ -96,6 +96,21 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Verificar IP do proxy (sem auth)
+app.get('/api/check-ip', async (req, res) => {
+  try {
+    const { launchBrowser } = require('./browser-config');
+    const browser = await launchBrowser({ headless: true });
+    const page = await browser.newPage();
+    await page.goto('https://ipinfo.io/json');
+    const ipData = JSON.parse(await page.textContent('body'));
+    await browser.close();
+    res.json({ success: true, ...ipData });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Endpoint para enviar mensagem por nome de usuário
 app.post('/api/send-message', authMiddleware, async (req, res) => {
   try {

@@ -1,7 +1,7 @@
-const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const { getAuthFilePath } = require('./instagram-auth-state');
+const { launchBrowser, setupResourceBlocking } = require('./browser-config');
 
 // Arquivo de autenticação
 const AUTH_FILE = getAuthFilePath();
@@ -28,17 +28,16 @@ async function sendDirectMessage(username, message, options = {}) {
   const slowMo = options.slowMo !== undefined ? options.slowMo : 50;
   
   // Iniciar o navegador com o estado de autenticação
-  const browser = await chromium.launch({ 
-    headless: headless, // Navegador visível ou não, dependendo da opção
-    slowMo: slowMo // Torna as ações mais lentas para visualização
-  });
-  
+  const browser = await launchBrowser({ headless, slowMo });
+
   const context = await browser.newContext({
-    storageState: AUTH_FILE
+    storageState: AUTH_FILE,
+    locale: 'pt-BR'
   });
-  
+
   const page = await context.newPage();
-  
+  await setupResourceBlocking(page);
+
   try {
     // Navegar para a página de mensagens diretas
     console.log('Acessando a página de mensagens diretas...');
@@ -207,17 +206,16 @@ async function sendMessageToConversation(conversationId, message, options = {}) 
   const slowMo = options.slowMo !== undefined ? options.slowMo : 50;
   
   // Iniciar o navegador com o estado de autenticação
-  const browser = await chromium.launch({ 
-    headless: headless, // Navegador visível ou não, dependendo da opção
-    slowMo: slowMo // Torna as ações mais lentas para visualização
-  });
-  
+  const browser = await launchBrowser({ headless, slowMo });
+
   const context = await browser.newContext({
-    storageState: AUTH_FILE
+    storageState: AUTH_FILE,
+    locale: 'pt-BR'
   });
-  
+
   const page = await context.newPage();
-  
+  await setupResourceBlocking(page);
+
   try {
     // Navegar diretamente para a conversa usando o ID
     const conversationUrl = `https://www.instagram.com/direct/t/${conversationId}/`;

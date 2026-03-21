@@ -4,7 +4,7 @@ const path = require('path');
 const { sendMessageToConversation } = require('./instagram-dm-sender');
 
 // Configuração do RapidAPI
-const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || '92228bdd1amsh0e05279bc93d520p10ecebjsn60f3b00191e4';
+const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 const RAPIDAPI_HOST = 'instagram-looter2.p.rapidapi.com';
 
 /**
@@ -19,14 +19,14 @@ async function getUserId(username) {
   }
 
   console.log(`Buscando ID para o usuário: ${username}`);
-  
+
   try {
     // Usar o novo endpoint com método GET
     const url = `https://${RAPIDAPI_HOST}/profile?username=${username}`;
-    
+
     console.log('Obtendo ID do usuário via RapidAPI...');
     console.log('URL:', url);
-    
+
     const response = await axios.request({
       method: 'GET',
       url: url,
@@ -37,33 +37,33 @@ async function getUserId(username) {
     });
 
     console.log('Dados recebidos da API:', response.data);
-    
+
     // Extrair o ID do usuário da resposta (campo eimu_id)
     if (response.data && response.data.eimu_id) {
       const userId = response.data.eimu_id;
       console.log(`ID do usuário ${username}: ${userId} (eimu_id)`);
       return userId;
     }
-    
+
     // Tentar extrair do campo id se eimu_id não estiver disponível
     if (response.data && response.data.id) {
       console.log(`Campo id encontrado (${response.data.id}), mas não é o ID correto para conversa.`);
     }
-    
+
     // Tentar extrair de outras estruturas de dados possíveis
     if (response.data && response.data.user && response.data.user.id) {
       const userId = response.data.user.id;
       console.log(`ID do usuário ${username}: ${userId} (user.id)`);
       return userId;
     }
-    
+
     // Tentar extrair de outras estruturas de dados possíveis
     if (response.data && response.data.pk) {
       const userId = response.data.pk;
       console.log(`ID do usuário ${username}: ${userId} (pk)`);
       return userId;
     }
-    
+
     console.error('Erro ao obter ID do usuário: estrutura de dados inesperada');
     console.log('Resposta completa:', JSON.stringify(response.data, null, 2));
     return null;
@@ -81,7 +81,7 @@ async function getUserId(username) {
 function saveUserIdToCache(username, userId) {
   const cacheFile = path.join(__dirname, 'user-id-cache.json');
   let cache = {};
-  
+
   // Carregar cache existente se disponível
   if (fs.existsSync(cacheFile)) {
     try {
@@ -90,13 +90,13 @@ function saveUserIdToCache(username, userId) {
       console.error('Erro ao ler cache:', error);
     }
   }
-  
+
   // Adicionar/atualizar entrada no cache
   cache[username.toLowerCase()] = {
     id: userId,
     timestamp: Date.now()
   };
-  
+
   // Salvar cache atualizado
   try {
     fs.writeFileSync(cacheFile, JSON.stringify(cache, null, 2));
@@ -114,18 +114,18 @@ function saveUserIdToCache(username, userId) {
  */
 function getUserIdFromCache(username, maxAgeMs = 30 * 24 * 60 * 60 * 1000) {
   const cacheFile = path.join(__dirname, 'user-id-cache.json');
-  
+
   if (!fs.existsSync(cacheFile)) {
     return null;
   }
-  
+
   try {
     const cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
     const entry = cache[username.toLowerCase()];
-    
+
     if (entry && entry.id && entry.timestamp) {
       const age = Date.now() - entry.timestamp;
-      
+
       if (age <= maxAgeMs) {
         console.log(`ID do usuário ${username} encontrado no cache: ${entry.id}`);
         return entry.id;
@@ -137,7 +137,7 @@ function getUserIdFromCache(username, maxAgeMs = 30 * 24 * 60 * 60 * 1000) {
   } catch (error) {
     console.error('Erro ao ler cache:', error);
   }
-  
+
   return null;
 }
 
@@ -149,13 +149,18 @@ function getUserIdFromCache(username, maxAgeMs = 30 * 24 * 60 * 60 * 1000) {
  * @returns {Promise<Object>} - Resultado da operação
  */
 async function sendMessageByUsername(username, message, options = {}) {
-  // Tentar obter ID do cache primeiro
-  let userId = getUserIdFromCache(username);
-  
-  // Se não encontrado no cache, buscar da API
+  // Verificar se o ID do usuário foi fornecido nas opções
+  let userId = options.userId;
+
+  // Se não fornecido, tentar obter ID do cache primeiro
+  if (!userId) {
+    userId = getUserIdFromCache(username);
+  }
+
+  // Se não fornecido e não encontrado no cache, buscar da API
   if (!userId) {
     userId = await getUserId(username);
-    
+
     // Se encontrado na API, salvar no cache
     if (userId) {
       saveUserIdToCache(username, userId);
@@ -165,8 +170,10 @@ async function sendMessageByUsername(username, message, options = {}) {
         error: `Não foi possível obter o ID do usuário ${username}`
       };
     }
+  } else {
+    console.log(`ID fornecido ou em cache para ${username}: ${userId}`);
   }
-  
+
   // Enviar mensagem usando o ID obtido
   console.log(`Enviando mensagem para ${username} (ID: ${userId})...`);
   return await sendMessageToConversation(userId, message, options);
@@ -185,14 +192,14 @@ if (require.main === module) {
   // Verificar argumentos da linha de comando
   const args = process.argv.slice(2);
   let headless = false;
-  
+
   // Verificar se a opção --headless está presente
   const headlessIndex = args.indexOf('--headless');
   if (headlessIndex !== -1) {
     headless = true;
     args.splice(headlessIndex, 1);
   }
-  
+
   if (args.length < 2) {
     console.log('Uso:');
     console.log('  node instagram-user-id.js [--headless] username "Sua mensagem aqui"');
@@ -201,17 +208,17 @@ if (require.main === module) {
     console.log('  export RAPIDAPI_KEY=sua_chave_aqui');
     process.exit(1);
   }
-  
+
   const username = args[0];
   const message = args[1];
-  
+
   // Verificar se a chave da API está configurada
   if (!RAPIDAPI_KEY) {
     console.error('ERRO: RAPIDAPI_KEY não definida. Configure a variável de ambiente:');
     console.error('  export RAPIDAPI_KEY=sua_chave_aqui');
     process.exit(1);
   }
-  
+
   // Enviar mensagem
   sendMessageByUsername(username, message, { headless })
     .then(result => {

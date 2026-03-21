@@ -1,0 +1,10 @@
+node_modules/
+.env
+instagram-auth.json
+src/instagram-auth.json
+user-id-cache.json
+src/user-id-cache.json
+*.png
+tunnel.log
+.DS_Store
+debug_screenshots/

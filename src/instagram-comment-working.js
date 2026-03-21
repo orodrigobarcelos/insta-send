@@ -3,10 +3,10 @@
  * Usa apenas click() e type() sem fill()
  */
 
-const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const { getAuthFilePath } = require('./instagram-auth-state');
+const { launchBrowser, setupResourceBlocking } = require('./browser-config');
 
 const AUTH_FILE = getAuthFilePath();
 
@@ -24,10 +24,7 @@ async function commentOnPost(shortcode, comment, options = {}) {
   const headless = options.headless !== undefined ? options.headless : false;
   const slowMo = options.slowMo !== undefined ? options.slowMo : 100;
 
-  const browser = await chromium.launch({
-    headless,
-    slowMo
-  });
+  const browser = await launchBrowser({ headless, slowMo });
 
   // Forçar locale para pt-BR para garantir que os textos de UI sejam previsíveis
   const context = await browser.newContext({
@@ -36,6 +33,7 @@ async function commentOnPost(shortcode, comment, options = {}) {
   });
 
   const page = await context.newPage();
+  await setupResourceBlocking(page);
 
   try {
     // 1. Acessar Post

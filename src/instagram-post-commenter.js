@@ -1,8 +1,8 @@
-const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const { getAuthFilePath } = require('./instagram-auth-state');
+const { launchBrowser, setupResourceBlocking } = require('./browser-config');
 
 // Arquivo de autenticação
 const AUTH_FILE = getAuthFilePath();
@@ -80,16 +80,15 @@ async function commentOnPost(shortcode, comment, options = {}) {
   const slowMo = options.slowMo !== undefined ? options.slowMo : 50;
 
   // Iniciar o navegador com o estado de autenticação
-  const browser = await chromium.launch({
-    headless: headless,
-    slowMo: slowMo
-  });
+  const browser = await launchBrowser({ headless, slowMo });
 
   const context = await browser.newContext({
-    storageState: AUTH_FILE
+    storageState: AUTH_FILE,
+    locale: 'pt-BR'
   });
 
   const page = await context.newPage();
+  await setupResourceBlocking(page);
 
   try {
     // Navegar para a página da postagem

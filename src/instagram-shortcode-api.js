@@ -1,45 +1,67 @@
 const axios = require('axios');
+const { launchBrowser, setupResourceBlocking } = require('./browser-config');
 require('dotenv').config();
 
 // Configuração da RapidAPI
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
-const RAPIDAPI_HOST = 'instagram-looter2.p.rapidapi.com';
+const RAPIDAPI_HOST = 'instagram-scraper-stable-api.p.rapidapi.com';
 
 /**
- * Obtém o shortcode do primeiro post do usuário via RapidAPI
+ * Obtém o shortcode do primeiro post do usuário via RapidAPI (Scraper Stable)
  * @param {string} username - Nome de usuário do Instagram
  * @returns {Promise<Object>} - Objeto com resultado da operação
  */
 async function getFirstPostShortcode(username) {
   try {
-    console.log(`Buscando dados do perfil para: @${username}`);
+    console.log(`Buscando dados do perfil para: @${username} via Stable API`);
 
-    const url = `https://instagram-looter2.p.rapidapi.com/profile?username=${username}`;
+    // Endpoint da nova API Stable
+    const url = `https://${RAPIDAPI_HOST}/get_ig_user_posts.php`;
+
+    // Dados para envio via x-www-form-urlencoded
+    const data = new URLSearchParams();
+    data.append('username_or_url', username);
+    data.append('amount', '3'); // Pede os 3 últimos posts
 
     const response = await axios.request({
-      method: 'GET',
+      method: 'POST',
       url: url,
       headers: {
-        'X-RapidAPI-Key': RAPIDAPI_KEY,
-        'X-RapidAPI-Host': RAPIDAPI_HOST
-      }
+        'x-rapidapi-key': RAPIDAPI_KEY,
+        'x-rapidapi-host': RAPIDAPI_HOST,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      data: data
     });
 
-    // Verificar se há postagens e encontrar o shortcode
+    // Verificar se há postagens e encontrar o shortcode (JSON Path: $.posts[0].node.code)
     if (response.data &&
-      response.data.edge_owner_to_timeline_media &&
-      response.data.edge_owner_to_timeline_media.edges &&
-      response.data.edge_owner_to_timeline_media.edges.length > 0) {
+      response.data.posts &&
+      response.data.posts.length > 0) {
 
       console.log(`Primeira postagem de @${username} encontrada`);
-      const firstPost = response.data.edge_owner_to_timeline_media.edges[0].node;
-      const shortcode = firstPost.shortcode;
+
+      const firstPostNode = response.data.posts[0].node;
+      const shortcode = firstPostNode.code;
+      const caption = firstPostNode.caption ? firstPostNode.caption.text : '';
+
+      // Tenta pegar a imagem de capa (qualidade média [1] ou alta [0])
+      let imageUrl = '';
+      if (firstPostNode.image_versions2 && firstPostNode.image_versions2.candidates) {
+        if (firstPostNode.image_versions2.candidates.length > 1) {
+          imageUrl = firstPostNode.image_versions2.candidates[1].url;
+        } else if (firstPostNode.image_versions2.candidates.length > 0) {
+          imageUrl = firstPostNode.image_versions2.candidates[0].url;
+        }
+      }
 
       return {
         success: true,
         shortcode,
         postUrl: `https://www.instagram.com/p/${shortcode}/`,
-        postData: firstPost
+        caption,
+        imageUrl,
+        postData: firstPostNode
       };
     } else {
       console.log(`Nenhuma postagem encontrada via API para @${username}. Tentando fallback com Playwright...`);
@@ -48,6 +70,8 @@ async function getFirstPostShortcode(username) {
     }
   } catch (error) {
     console.error('Erro ao buscar dados do perfil via API:', error.message);
+    if (error.response) console.error('Detalhes do erro API:', error.response.data);
+
     console.log('Tentando fallback com Playwright...');
     return await getShortcodeWithPlaywright(username);
   }
@@ -57,7 +81,6 @@ async function getFirstPostShortcode(username) {
  * Obtém o shortcode usando Playwright (scraping) como fallback
  */
 async function getShortcodeWithPlaywright(username) {
-  const { chromium } = require('playwright');
   const path = require('path');
   const fs = require('fs');
   // Ajustar caminho para o arquivo de auth
@@ -74,16 +97,15 @@ async function getShortcodeWithPlaywright(username) {
 
   let browser = null;
   try {
-    browser = await chromium.launch({
-      headless: true, // Sempre headless no servidor
-      args: ['--no-sandbox', '--disable-setuid-sandbox'] // Importante para Docker/Railway
-    });
+    browser = await launchBrowser({ headless: true });
 
     const context = await browser.newContext({
-      storageState: AUTH_FILE
+      storageState: AUTH_FILE,
+      locale: 'pt-BR'
     });
 
     const page = await context.newPage();
+    await setupResourceBlocking(page);
 
     // Ir para o perfil
     const profileUrl = `https://www.instagram.com/${username}/`;

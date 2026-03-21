@@ -1,5 +1,5 @@
 const express = require('express');
-const bodyParser = require('body-parser');
+const path = require('path');
 const cors = require('cors');
 const { sendMessageByUsername } = require('./instagram-user-id');
 const { commentOnFirstPost } = require('./instagram-post-commenter');
@@ -15,24 +15,43 @@ loadAuthFromEnv();
 // Criar o aplicativo Express
 const app = express();
 const PORT = process.env.PORT || 3001;
+const API_KEY = process.env.API_KEY;
+
+// Avisos de configuracao
+if (!API_KEY) console.warn('AVISO: API_KEY nao definida. Endpoints nao estarao protegidos.');
+if (!process.env.RAPIDAPI_KEY) console.warn('AVISO: RAPIDAPI_KEY nao definida. Funcoes de busca de usuario/shortcode podem falhar.');
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// Rota principal para verificar se o servidor está funcionando
-app.get('/', (req, res) => {
+// Middleware de autenticação por API Key
+function authMiddleware(req, res, next) {
+  if (!API_KEY) {
+    return res.status(503).json({ success: false, error: 'API_KEY nao configurada. Configure as variaveis de ambiente primeiro.' });
+  }
+  const key = req.headers['x-api-key'];
+  if (!key || key !== API_KEY) {
+    return res.status(401).json({ success: false, error: 'API key inválida ou ausente' });
+  }
+  next();
+}
+
+// Health check (sem auth)
+app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
-    message: 'Servidor de envio de mensagens Instagram está funcionando!'
+    configured: !!API_KEY && !!process.env.RAPIDAPI_KEY
   });
 });
 
 // Endpoint para enviar mensagem por nome de usuário
-app.post('/api/send-message', async (req, res) => {
+app.post('/api/send-message', authMiddleware, async (req, res) => {
   try {
     // Verificar se o corpo da requisição contém username e message
-    const { username, message } = req.body;
+    // Aceitar userId opcional para otimização
+    const { username, message, userId } = req.body;
 
     if (!username || !message) {
       return res.status(400).json({
@@ -42,9 +61,16 @@ app.post('/api/send-message', async (req, res) => {
     }
 
     console.log(`Recebida solicitação para enviar mensagem para @${username}: "${message}"`);
+    if (userId) {
+      console.log(`ID do usuário fornecido: ${userId} (Otimizado)`);
+    }
 
     // Enviar a mensagem usando o script existente (em modo headless)
-    const result = await sendMessageByUsername(username, message, { headless: true });
+    // Passar userId nas opções se disponível
+    const result = await sendMessageByUsername(username, message, {
+      headless: true,
+      userId: userId || null
+    });
 
     // Retornar o resultado
     return res.json(result);
@@ -58,7 +84,7 @@ app.post('/api/send-message', async (req, res) => {
 });
 
 // Endpoint para comentar na primeira postagem de um usuário
-app.post('/api/comment-first-post', async (req, res) => {
+app.post('/api/comment-first-post', authMiddleware, async (req, res) => {
   try {
     // Verificar se o corpo da requisição contém username e comment
     const { username, comment } = req.body;
@@ -87,7 +113,7 @@ app.post('/api/comment-first-post', async (req, res) => {
 });
 
 // Endpoint para comentar em uma postagem específica usando shortcode
-app.post('/api/comment-post', async (req, res) => {
+app.post('/api/comment-post', authMiddleware, async (req, res) => {
   try {
     // Verificar se o corpo da requisição contém shortcode e comment
     const { shortcode, comment } = req.body;
@@ -119,7 +145,7 @@ app.post('/api/comment-post', async (req, res) => {
 });
 
 // Endpoint para comentar na primeira postagem de um usuário usando RapidAPI ou shortcode direto
-app.post('/api/comment-via-rapidapi', async (req, res) => {
+app.post('/api/comment-via-rapidapi', authMiddleware, async (req, res) => {
   try {
     // Verificar se o corpo da requisição contém os parâmetros necessários
     const { username, comment, shortcode: providedShortcode } = req.body;

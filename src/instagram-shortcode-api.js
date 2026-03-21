@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { launchBrowser, setupResourceBlocking } = require('./browser-config');
+const { launchBrowser, setupResourceBlocking, handleInstagramChallenge } = require('./browser-config');
 require('dotenv').config();
 
 // Configuração da RapidAPI
@@ -112,8 +112,9 @@ async function getShortcodeWithPlaywright(username) {
     console.log(`Acessando perfil: ${profileUrl}`);
     await page.goto(profileUrl);
 
-    // Esperar carregar
+    // Esperar carregar e tratar telas de verificacao
     await page.waitForTimeout(5000);
+    await handleInstagramChallenge(page);
 
     // Tentar encontrar o primeiro post (link que contém /p/)
     // Seleciona todos os links

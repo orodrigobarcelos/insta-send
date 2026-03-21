@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const { getAuthFilePath } = require('./instagram-auth-state');
-const { launchBrowser, setupResourceBlocking } = require('./browser-config');
+const { launchBrowser, setupResourceBlocking, handleInstagramChallenge } = require('./browser-config');
 
 // Arquivo de autenticação
 const AUTH_FILE = getAuthFilePath();
@@ -96,9 +96,10 @@ async function commentOnPost(shortcode, comment, options = {}) {
     console.log(`Acessando a postagem: ${postUrl}`);
     await page.goto(postUrl);
 
-    // Usar abordagem mais simples para aguardar carregamento
+    // Aguardar carregamento e tratar telas de verificacao
     console.log('Aguardando carregamento da página...');
-    await page.waitForTimeout(5000); // Esperar tempo fixo em vez de networkidle
+    await page.waitForTimeout(5000);
+    await handleInstagramChallenge(page);
 
     // Tirar screenshot para debug
     const initialScreenshot = path.join(__dirname, 'post-initial.png');

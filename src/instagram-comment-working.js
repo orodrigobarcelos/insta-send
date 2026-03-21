@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const { getAuthFilePath } = require('./instagram-auth-state');
-const { launchBrowser, setupResourceBlocking } = require('./browser-config');
+const { launchBrowser, setupResourceBlocking, handleInstagramChallenge } = require('./browser-config');
 
 const AUTH_FILE = getAuthFilePath();
 
@@ -41,8 +41,12 @@ async function commentOnPost(shortcode, comment, options = {}) {
     console.log(`Acessando: ${postUrl}`);
     await page.goto(postUrl);
 
-    // Aguardar carregamento (fixo + seletor de conteúdo)
-    await page.waitForTimeout(4000);
+    // Aguardar carregamento
+    await page.waitForTimeout(5000);
+
+    // Tratar telas de verificacao do Instagram
+    await handleInstagramChallenge(page);
+
     try {
       await page.waitForSelector('article', { timeout: 180000 });
     } catch (e) { console.log('Artigo não detectado imediatamente...'); }

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { getAuthFilePath } = require('./instagram-auth-state');
-const { launchBrowser, setupResourceBlocking } = require('./browser-config');
+const { launchBrowser, setupResourceBlocking, handleInstagramChallenge } = require('./browser-config');
 
 // Arquivo de autenticação
 const AUTH_FILE = getAuthFilePath();
@@ -42,7 +42,11 @@ async function sendDirectMessage(username, message, options = {}) {
     // Navegar para a página de mensagens diretas
     console.log('Acessando a página de mensagens diretas...');
     await page.goto('https://www.instagram.com/direct/inbox/');
-    
+
+    // Tratar telas de verificacao do Instagram
+    await page.waitForTimeout(5000);
+    await handleInstagramChallenge(page);
+
     // Esperar a página carregar
     await page.waitForSelector('svg[aria-label="Nova mensagem"]', { timeout: 180000 });
     
@@ -221,7 +225,11 @@ async function sendMessageToConversation(conversationId, message, options = {}) 
     const conversationUrl = `https://www.instagram.com/direct/t/${conversationId}/`;
     console.log(`Acessando a conversa: ${conversationUrl}`);
     await page.goto(conversationUrl);
-    
+
+    // Tratar telas de verificacao do Instagram
+    await page.waitForTimeout(5000);
+    await handleInstagramChallenge(page);
+
     // Esperar a página de conversa carregar (campo de mensagem)
     await page.waitForSelector('div[contenteditable="true"]', { timeout: 180000 });
     

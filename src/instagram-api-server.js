@@ -197,6 +197,19 @@ app.post('/api/start-visual-login', async (req, res) => {
     const browser = await launchBrowser(launchOptions);
     const context = await browser.newContext({ locale: 'pt-BR', viewport: null });
     const page = await context.newPage();
+
+    // Forcar janela maximizada via CDP
+    try {
+      const session = await page.context().newCDPSession(page);
+      const { windowId } = await session.send('Browser.getWindowForTarget');
+      await session.send('Browser.setWindowBounds', {
+        windowId,
+        bounds: { left: 0, top: 0, width: 1280, height: 720, windowState: 'maximized' }
+      });
+    } catch (e) {
+      console.log('CDP maximize falhou (nao critico):', e.message);
+    }
+
     await setupResourceBlocking(page);
 
     await page.goto('https://www.instagram.com/accounts/login/', {

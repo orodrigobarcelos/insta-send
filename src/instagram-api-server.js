@@ -9,6 +9,7 @@ const { commentOnFirstPost } = require('./instagram-post-commenter');
 const { commentOnPost } = require('./instagram-comment-working');
 const { getFirstPostShortcode } = require('./instagram-shortcode-api');
 const { loadAuthFromEnv } = require('./auth-loader');
+const sharedBrowser = require('./shared-browser');
 require('dotenv').config();
 
 // Tentar carregar autenticação do ambiente antes de iniciar
@@ -186,12 +187,13 @@ app.post('/api/start-visual-login', async (req, res) => {
 
     vncSessionToken = crypto.randomBytes(32).toString('hex');
 
-    const { launchBrowser } = require('./browser-config');
+    const { launchBrowser, setupResourceBlocking } = require('./browser-config');
 
     console.log('Iniciando login visual via noVNC...');
     const browser = await launchBrowser({ visual: true, slowMo: 50 });
     const context = await browser.newContext({ locale: 'pt-BR' });
     const page = await context.newPage();
+    await setupResourceBlocking(page);
 
     await page.goto('https://www.instagram.com/accounts/login/', {
       waitUntil: 'domcontentloaded',
@@ -350,15 +352,18 @@ app.post('/api/send-message', authMiddleware, async (req, res) => {
       console.log(`ID do usuário fornecido: ${userId} (Otimizado)`);
     }
 
-    // Enviar a mensagem usando o script existente (em modo headless)
-    // Passar userId nas opções se disponível
-    const result = await sendMessageByUsername(username, message, {
-      headless: true,
-      userId: userId || null
-    });
-
-    // Retornar o resultado
-    return res.json(result);
+    // Usar browser persistente
+    const page = await sharedBrowser.getPage();
+    try {
+      const result = await sendMessageByUsername(username, message, {
+        headless: true,
+        userId: userId || null,
+        page
+      });
+      return res.json(result);
+    } finally {
+      await sharedBrowser.releasePage(page);
+    }
   } catch (error) {
     console.error('Erro ao processar solicitação:', error);
     return res.status(500).json({
@@ -412,14 +417,17 @@ app.post('/api/comment-post', authMiddleware, async (req, res) => {
 
     console.log(`Recebida solicitação para comentar na postagem ${shortcode}: "${comment}"`);
 
-    // Comentar na postagem usando a versão robusta (em modo headless)
-    const result = await commentOnPost(shortcode, comment, {
-      headless: true,
-      maxRetries: 3 // Tentar até 3 vezes em caso de falha
-    });
-
-    // Retornar o resultado
-    return res.json(result);
+    // Usar browser persistente
+    const page = await sharedBrowser.getPage();
+    try {
+      const result = await commentOnPost(shortcode, comment, {
+        headless: true,
+        page
+      });
+      return res.json(result);
+    } finally {
+      await sharedBrowser.releasePage(page);
+    }
   } catch (error) {
     console.error('Erro ao processar solicitação de comentário:', error);
     return res.status(500).json({
@@ -469,20 +477,23 @@ app.post('/api/comment-via-rapidapi', authMiddleware, async (req, res) => {
       console.log(`Recebida solicitação para comentar via shortcode ${shortcode}: "${comment}"`);
     }
 
-    // 2. Comentar na postagem usando a versão robusta
+    // 2. Comentar na postagem usando browser persistente
     console.log(`Comentando na postagem ${shortcode}...`);
-    const commentResult = await commentOnPost(shortcode, comment, {
-      headless: true,
-      maxRetries: 3 // Tentar até 3 vezes em caso de falha
-    });
-
-    // 3. Retornar resultado combinado
-    return res.json({
-      ...commentResult,
-      shortcode,
-      postUrl,
-      username: username || null
-    });
+    const page = await sharedBrowser.getPage();
+    try {
+      const commentResult = await commentOnPost(shortcode, comment, {
+        headless: true,
+        page
+      });
+      return res.json({
+        ...commentResult,
+        shortcode,
+        postUrl,
+        username: username || null
+      });
+    } finally {
+      await sharedBrowser.releasePage(page);
+    }
   } catch (error) {
     console.error('Erro ao processar solicitação de comentário via RapidAPI:', error);
     return res.status(500).json({
@@ -507,9 +518,30 @@ const wsProxy = createProxyMiddleware({
 app.use('/websockify', wsProxy);
 
 // Iniciar o servidor e registrar handler de WebSocket upgrade
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   console.log(`Servidor rodando na porta ${PORT}`);
   console.log(`Acesse: http://localhost:${PORT}`);
+
+  // Inicializar browser persistente em background
+  try {
+    await sharedBrowser.init();
+    console.log('Browser persistente inicializado com sucesso.');
+  } catch (e) {
+    console.warn('Browser persistente nao inicializou agora (sera iniciado no primeiro uso):', e.message);
+  }
 });
 
 server.on('upgrade', wsProxy.upgrade);
+
+// Shutdown limpo
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM recebido. Encerrando...');
+  await sharedBrowser.shutdown();
+  server.close();
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT recebido. Encerrando...');
+  await sharedBrowser.shutdown();
+  server.close();
+});

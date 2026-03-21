@@ -21,19 +21,24 @@ async function commentOnPost(shortcode, comment, options = {}) {
   console.log(`Comentando no post: ${shortcode}`);
   console.log(`Comentário: "${comment}"`);
 
-  const headless = options.headless !== undefined ? options.headless : false;
-  const slowMo = options.slowMo !== undefined ? options.slowMo : 100;
+  // Se page foi fornecida externamente (browser persistente), usar ela
+  const externalPage = options.page || null;
+  let browser = null;
+  let page;
 
-  const browser = await launchBrowser({ headless, slowMo });
-
-  // Forçar locale para pt-BR para garantir que os textos de UI sejam previsíveis
-  const context = await browser.newContext({
-    storageState: AUTH_FILE,
-    locale: 'pt-BR'
-  });
-
-  const page = await context.newPage();
-  await setupResourceBlocking(page);
+  if (externalPage) {
+    page = externalPage;
+  } else {
+    const headless = options.headless !== undefined ? options.headless : false;
+    const slowMo = options.slowMo !== undefined ? options.slowMo : 100;
+    browser = await launchBrowser({ headless, slowMo });
+    const context = await browser.newContext({
+      storageState: AUTH_FILE,
+      locale: 'pt-BR'
+    });
+    page = await context.newPage();
+    await setupResourceBlocking(page);
+  }
 
   try {
     // 1. Acessar Post
@@ -176,7 +181,7 @@ async function commentOnPost(shortcode, comment, options = {}) {
       return el ? el.value === '' : true; // Se sumiu ou tá vazio, é bom sinal
     }, workingSelector || 'textarea');
 
-    await browser.close();
+    if (browser) await browser.close();
 
     // Critério de sucesso: Achou o texto OU (Não achou erro E Campo limpou)
     const success = commentFound || isFieldEmpty;
@@ -197,8 +202,8 @@ async function commentOnPost(shortcode, comment, options = {}) {
   } catch (error) {
     console.error('Erro:', error.message);
     const screenshotPath = path.join(__dirname, 'error-working-approach.png');
-    await page.screenshot({ path: screenshotPath });
-    await browser.close();
+    await page.screenshot({ path: screenshotPath }).catch(() => {});
+    if (browser) await browser.close();
 
     return {
       success: false,

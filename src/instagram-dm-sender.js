@@ -204,21 +204,25 @@ async function sendMessageToConversation(conversationId, message, options = {}) 
   }
 
   console.log(`Iniciando envio de mensagem para conversa ID: ${conversationId}...`);
-  
-  // Opções padrão
-  const headless = options.headless !== undefined ? options.headless : false;
-  const slowMo = options.slowMo !== undefined ? options.slowMo : 50;
-  
-  // Iniciar o navegador com o estado de autenticação
-  const browser = await launchBrowser({ headless, slowMo });
 
-  const context = await browser.newContext({
-    storageState: AUTH_FILE,
-    locale: 'pt-BR'
-  });
+  // Se page foi fornecida externamente (browser persistente), usar ela
+  const externalPage = options.page || null;
+  let browser = null;
+  let page;
 
-  const page = await context.newPage();
-  await setupResourceBlocking(page);
+  if (externalPage) {
+    page = externalPage;
+  } else {
+    const headless = options.headless !== undefined ? options.headless : false;
+    const slowMo = options.slowMo !== undefined ? options.slowMo : 50;
+    browser = await launchBrowser({ headless, slowMo });
+    const context = await browser.newContext({
+      storageState: AUTH_FILE,
+      locale: 'pt-BR'
+    });
+    page = await context.newPage();
+    await setupResourceBlocking(page);
+  }
 
   try {
     // Navegar diretamente para a conversa usando o ID
@@ -256,26 +260,26 @@ async function sendMessageToConversation(conversationId, message, options = {}) 
       console.log('Mensagem enviada, mas não foi possível confirmar na interface.');
     }
     
-    // Fechar o navegador
-    await browser.close();
-    
+    // Fechar o navegador (apenas se criou proprio)
+    if (browser) await browser.close();
+
     return {
       success: true,
       message: `Mensagem enviada para conversa ${conversationId}`,
       verified: messageFound
     };
-    
+
   } catch (error) {
     console.error('Erro ao enviar mensagem:', error);
-    
+
     // Tirar screenshot em caso de erro
     const screenshotPath = path.join(__dirname, 'error-screenshot.png');
-    await page.screenshot({ path: screenshotPath });
+    await page.screenshot({ path: screenshotPath }).catch(() => {});
     console.error(`Screenshot de erro salvo em: ${screenshotPath}`);
-    
-    // Fechar o navegador
-    await browser.close();
-    
+
+    // Fechar o navegador (apenas se criou proprio)
+    if (browser) await browser.close();
+
     return {
       success: false,
       error: error.message,

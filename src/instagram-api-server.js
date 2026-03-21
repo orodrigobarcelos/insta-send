@@ -177,6 +177,9 @@ app.post('/api/instagram-login', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Username e senha sao obrigatorios.' });
     }
 
+    // Responder imediatamente pra nao dar timeout no request
+    // O login roda em background
+
     // Limpar sessao anterior se existir
     clearLoginSession();
 
@@ -189,17 +192,34 @@ app.post('/api/instagram-login', async (req, res) => {
     await setupResourceBlocking(page);
 
     // 1. Acessar pagina de login
-    await page.goto('https://www.instagram.com/accounts/login/');
-    await page.waitForTimeout(5000);
+    await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    console.log('Pagina de login carregada, aguardando campos...');
 
-    // 2. Preencher username e senha
+    // 2. Aceitar cookies se aparecer banner
+    await page.waitForTimeout(3000);
+    const cookieBtn = await page.$('button:has-text("Allow"), button:has-text("Permitir"), button:has-text("Accept")');
+    if (cookieBtn) {
+      console.log('Banner de cookies detectado, aceitando...');
+      await cookieBtn.click();
+      await page.waitForTimeout(2000);
+    }
+
+    // 3. Esperar campos de login aparecerem (ate 60s)
+    try {
+      await page.waitForSelector('input[name="username"]', { timeout: 60000 });
+    } catch (e) {
+      console.log('Campos de login nao apareceram. Tirando screenshot...');
+      const screenshot = await page.screenshot();
+      await browser.close();
+      // Salvar screenshot pra debug
+      const fs = require('fs');
+      const path = require('path');
+      fs.writeFileSync(path.join(__dirname, 'login-debug.png'), screenshot);
+      return res.status(400).json({ success: false, error: 'Pagina de login nao carregou. Verifique os logs e /api/debug-screenshot.' });
+    }
+
     const usernameField = await page.$('input[name="username"]');
     const passwordField = await page.$('input[name="password"]');
-
-    if (!usernameField || !passwordField) {
-      await browser.close();
-      return res.status(400).json({ success: false, error: 'Pagina de login nao carregou corretamente.' });
-    }
 
     await usernameField.fill(username);
     await page.waitForTimeout(500);

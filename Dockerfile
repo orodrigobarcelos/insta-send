@@ -6,6 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     x11vnc \
+    matchbox-window-manager \
     python3-pip \
     python3-numpy \
     && pip3 install --no-cache-dir websockify \

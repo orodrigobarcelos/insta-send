@@ -7,7 +7,12 @@ Xvfb :99 -screen 0 1280x720x24 -ac &
 export DISPLAY=:99
 sleep 2
 
-# 2. Iniciar x11vnc (VNC server, porta interna 5900)
+# 2. Iniciar matchbox (window manager que maximiza tudo sem decoracao)
+echo "[startup] Iniciando matchbox-window-manager..."
+matchbox-window-manager -use_titlebar no -use_cursor no &
+sleep 1
+
+# 3. Iniciar x11vnc (VNC server, porta interna 5900)
 echo "[startup] Iniciando x11vnc na porta 5900..."
 x11vnc -display :99 -forever -nopw -shared -rfbport 5900 -noxdamage -threads &
 sleep 1

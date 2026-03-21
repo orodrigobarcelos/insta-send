@@ -120,7 +120,7 @@ app.get('/api/health', (req, res) => {
 app.get('/api/debug-screenshot', async (req, res) => {
   try {
     const url = req.query.url || 'https://www.instagram.com/';
-    const { launchBrowser, setupResourceBlocking } = require('./browser-config');
+    const { launchBrowser, setupResourceBlocking, handleInstagramChallenge } = require('./browser-config');
     const { getAuthFilePath } = require('./instagram-auth-state');
     const fs = require('fs');
     const AUTH_FILE = getAuthFilePath();
@@ -134,7 +134,9 @@ app.get('/api/debug-screenshot', async (req, res) => {
     const page = await context.newPage();
     await setupResourceBlocking(page);
     await page.goto(url);
-    await page.waitForTimeout(8000);
+    await page.waitForTimeout(5000);
+    await handleInstagramChallenge(page);
+    await page.waitForTimeout(5000);
 
     const screenshot = await page.screenshot({ fullPage: false });
     const pageTitle = await page.title();

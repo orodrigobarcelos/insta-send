@@ -494,10 +494,15 @@ app.post('/api/comment-via-rapidapi', authMiddleware, async (req, res) => {
 
 // Proxy WebSocket para noVNC (websockify interno na porta 6080)
 const wsProxy = createProxyMiddleware({
-  target: 'http://localhost:6080',
-  ws: true,
+  target: 'ws://localhost:6080',
   changeOrigin: true,
-  logger: console
+  ws: true,
+  pathRewrite: { '^/websockify': '' },
+  on: {
+    error: (err, req, res) => {
+      console.error('WebSocket proxy error:', err.message);
+    }
+  }
 });
 app.use('/websockify', wsProxy);
 
@@ -507,10 +512,4 @@ const server = app.listen(PORT, () => {
   console.log(`Acesse: http://localhost:${PORT}`);
 });
 
-server.on('upgrade', (req, socket, head) => {
-  if (req.url.startsWith('/websockify')) {
-    wsProxy.upgrade(req, socket, head);
-  } else {
-    socket.destroy();
-  }
-});
+server.on('upgrade', wsProxy.upgrade);

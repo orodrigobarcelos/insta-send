@@ -6,10 +6,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     x11vnc \
     python3-pip \
-    python3-numpy \
-    && pip3 install websockify \
+    && pip3 install --no-cache-dir websockify \
     && git clone --depth 1 https://github.com/novnc/noVNC.git /opt/novnc \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /root/.cache
 
 # Configurar diretório de trabalho
 WORKDIR /app

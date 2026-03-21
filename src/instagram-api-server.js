@@ -193,9 +193,9 @@ app.post('/api/instagram-login', async (req, res) => {
     console.log('Pagina carregada, aguardando elementos...');
     await page.waitForTimeout(5000);
 
-    // 2. Esperar por qualquer campo de senha ou username (ate 60s)
+    // 2. Esperar por qualquer campo de login (ate 60s)
     try {
-      await page.waitForSelector('input[type="password"], input[name="username"], input[name="password"]', { timeout: 60000 });
+      await page.waitForSelector('input[name="email"], input[name="username"], input[type="password"], input[name="pass"]', { timeout: 60000 });
       console.log('Campo de login encontrado!');
     } catch (e) {
       console.log('Campos nao apareceram. Tirando screenshot...');
@@ -206,23 +206,19 @@ app.post('/api/instagram-login', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Campos de login nao encontrados. Tente novamente.' });
     }
 
-    // 3. Preencher username se o campo existir (digitar caractere por caractere)
-    const usernameField = await page.$('input[name="username"]');
+    // 3. Preencher username (Instagram usa name="email" ou name="username")
+    const usernameField = await page.$('input[name="email"], input[name="username"]');
     if (usernameField) {
-      console.log('Campo de username encontrado, digitando...');
-      await usernameField.click();
-      await page.waitForTimeout(300);
-      await usernameField.pressSequentially(username, { delay: 50 });
+      console.log('Campo de username encontrado, preenchendo...');
+      await usernameField.fill(username);
       await page.waitForTimeout(500);
     }
 
-    // 4. Preencher senha (digitar caractere por caractere pra React detectar)
-    const passwordField = await page.$('input[type="password"], input[name="password"]');
+    // 4. Preencher senha (Instagram usa name="pass" ou type="password")
+    const passwordField = await page.$('input[name="pass"], input[type="password"], input[name="password"]');
     if (passwordField) {
-      console.log('Campo de senha encontrado, digitando...');
-      await passwordField.click();
-      await page.waitForTimeout(300);
-      await passwordField.pressSequentially(password, { delay: 50 });
+      console.log('Campo de senha encontrado, preenchendo...');
+      await passwordField.fill(password);
       await page.waitForTimeout(1000);
     } else {
       await browser.close();
@@ -230,12 +226,20 @@ app.post('/api/instagram-login', async (req, res) => {
     }
 
     // 5. Clicar em Entrar/Log In
-    const loginBtn = await page.$('button:has-text("Entrar"), button:has-text("Log in"), button:has-text("Log In"), button[type="submit"]');
-    if (loginBtn) {
-      await loginBtn.click();
-      console.log('Clicou em Entrar, aguardando resposta...');
-      await page.waitForTimeout(15000);
-    }
+    console.log('Clicando em Entrar...');
+    await page.evaluate(() => {
+      // Procurar botao visivel com texto Entrar/Log In
+      const btns = Array.from(document.querySelectorAll('button, div[role="button"]'));
+      const btn = btns.find(b => ['entrar', 'log in'].includes(b.textContent.trim().toLowerCase()));
+      if (btn) btn.click();
+      else {
+        // Fallback: submit o formulario diretamente
+        const form = document.querySelector('form');
+        if (form) form.submit();
+      }
+    });
+    console.log('Clicou em Entrar, aguardando resposta...');
+    await page.waitForTimeout(15000);
 
     // Debug: screenshot apos login
     const fs2 = require('fs');
@@ -245,13 +249,19 @@ app.post('/api/instagram-login', async (req, res) => {
 
     // 6. Verificar erro de senha
     const loginError = await page.evaluate(() => {
-      const el = document.querySelector('#slfErrorAlert, [role="alert"]');
-      return el ? el.textContent : null;
+      const el = document.querySelector('#slfErrorAlert, [role="alert"], p[data-testid="login-error-message"]');
+      if (el) return el.textContent;
+      // Procurar qualquer texto de erro na pagina
+      const allText = document.body.innerText;
+      if (allText.includes('incorretas') || allText.includes('incorrect')) {
+        return 'Senha incorreta. Verifique suas credenciais.';
+      }
+      return null;
     });
 
     if (loginError) {
       await browser.close();
-      return res.status(401).json({ success: false, error: `Erro de login: ${loginError}` });
+      return res.status(401).json({ success: false, error: loginError });
     }
 
     // 5. Verificar se pede 2FA

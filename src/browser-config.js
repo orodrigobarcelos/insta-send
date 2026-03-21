@@ -16,7 +16,7 @@ async function launchBrowser(options = {}) {
   if (options.visual) {
     config.headless = false;
     if (!process.env.DISPLAY) process.env.DISPLAY = ':99';
-    config.args.push('--window-size=1280,720', '--start-maximized');
+    config.args.push('--window-position=0,0', '--window-size=1280,720', '--start-maximized', '--kiosk');
   }
 
   // Adicionar proxy: prioridade para options.proxy, fallback para env

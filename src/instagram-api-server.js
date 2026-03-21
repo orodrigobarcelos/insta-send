@@ -195,7 +195,7 @@ app.post('/api/start-visual-login', async (req, res) => {
       launchOptions.proxy = proxy;
     }
     const browser = await launchBrowser(launchOptions);
-    const context = await browser.newContext({ locale: 'pt-BR', viewport: { width: 1260, height: 680 } });
+    const context = await browser.newContext({ locale: 'pt-BR', viewport: null });
     const page = await context.newPage();
     await setupResourceBlocking(page);
 

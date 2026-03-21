@@ -2,7 +2,7 @@ node_modules
 npm-debug.log
 .git
 .DS_Store
-*.png
+src/*.png
 tunnel.log
 src/test-*.js
 src/user-id-cache.json

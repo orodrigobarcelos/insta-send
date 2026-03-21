@@ -63,15 +63,35 @@ app.post('/api/setup-railway', async (req, res) => {
 
     const { projectId, environmentId } = tokenData.data.projectToken;
 
-    // 2. Setar cada variavel
+    // 2. Obter serviceId do primeiro servico do projeto
+    const servicesRes = await fetch(RAILWAY_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Project-Access-Token': token },
+      body: JSON.stringify({
+        query: `query($projectId: String!) { project(id: $projectId) { services { edges { node { id name } } } } }`,
+        variables: { projectId }
+      })
+    });
+    const servicesData = await servicesRes.json();
+
+    let serviceId = null;
+    if (servicesData.data?.project?.services?.edges?.length > 0) {
+      serviceId = servicesData.data.project.services.edges[0].node.id;
+      console.log(`ServiceId encontrado: ${serviceId}`);
+    }
+
+    // 3. Setar cada variavel (com serviceId para vincular direto ao servico)
     const savedNames = [];
     for (const [name, value] of Object.entries(variables)) {
+      const input = { projectId, environmentId, name, value };
+      if (serviceId) input.serviceId = serviceId;
+
       const upsertRes = await fetch(RAILWAY_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Project-Access-Token': token },
         body: JSON.stringify({
           query: 'mutation($input: VariableUpsertInput!) { variableUpsert(input: $input) }',
-          variables: { input: { projectId, environmentId, name, value } }
+          variables: { input }
         })
       });
       const upsertData = await upsertRes.json();

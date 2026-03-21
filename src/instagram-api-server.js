@@ -206,19 +206,23 @@ app.post('/api/instagram-login', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Campos de login nao encontrados. Tente novamente.' });
     }
 
-    // 3. Preencher username se o campo existir
+    // 3. Preencher username se o campo existir (digitar caractere por caractere)
     const usernameField = await page.$('input[name="username"]');
     if (usernameField) {
-      console.log('Campo de username encontrado, preenchendo...');
-      await usernameField.fill(username);
+      console.log('Campo de username encontrado, digitando...');
+      await usernameField.click();
+      await page.waitForTimeout(300);
+      await usernameField.pressSequentially(username, { delay: 50 });
       await page.waitForTimeout(500);
     }
 
-    // 4. Preencher senha
+    // 4. Preencher senha (digitar caractere por caractere pra React detectar)
     const passwordField = await page.$('input[type="password"], input[name="password"]');
     if (passwordField) {
-      console.log('Campo de senha encontrado, preenchendo...');
-      await passwordField.fill(password);
+      console.log('Campo de senha encontrado, digitando...');
+      await passwordField.click();
+      await page.waitForTimeout(300);
+      await passwordField.pressSequentially(password, { delay: 50 });
       await page.waitForTimeout(1000);
     } else {
       await browser.close();
@@ -230,8 +234,14 @@ app.post('/api/instagram-login', async (req, res) => {
     if (loginBtn) {
       await loginBtn.click();
       console.log('Clicou em Entrar, aguardando resposta...');
-      await page.waitForTimeout(10000);
+      await page.waitForTimeout(15000);
     }
+
+    // Debug: screenshot apos login
+    const fs2 = require('fs');
+    const path2 = require('path');
+    fs2.writeFileSync(path2.join(__dirname, 'after-login.png'), await page.screenshot());
+    console.log('Screenshot pos-login salvo.');
 
     // 6. Verificar erro de senha
     const loginError = await page.evaluate(() => {

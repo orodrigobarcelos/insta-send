@@ -1,6 +1,8 @@
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
+const crypto = require('crypto');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 const { sendMessageByUsername } = require('./instagram-user-id');
 const { commentOnFirstPost } = require('./instagram-post-commenter');
 // Usar a versão robusta da função commentOnPost
@@ -25,6 +27,7 @@ if (!process.env.RAPIDAPI_KEY) console.warn('AVISO: RAPIDAPI_KEY nao definida. F
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use('/novnc', express.static('/opt/novnc'));
 
 // Middleware de autenticação por API Key
 function authMiddleware(req, res, next) {
@@ -108,18 +111,6 @@ app.post('/api/setup-railway', async (req, res) => {
   }
 });
 
-// Sessao de login ativa (browser aberto aguardando 2FA)
-let loginSession = null;
-
-// Limpar sessao de login apos timeout
-function clearLoginSession() {
-  if (loginSession) {
-    console.log('Limpando sessao de login...');
-    loginSession.browser.close().catch(() => {});
-    loginSession = null;
-  }
-}
-
 // Salvar sessao do Instagram na Railway
 async function saveSessionToRailway(context, token) {
   const { getAuthFilePath } = require('./instagram-auth-state');
@@ -168,220 +159,119 @@ async function saveSessionToRailway(context, token) {
   console.log('Sessao salva na Railway com sucesso!');
 }
 
-// Endpoint de login - etapa 1: username + senha (sem auth)
-app.post('/api/instagram-login', async (req, res) => {
-  try {
-    const { token, username, password } = req.body;
+// === LOGIN VISUAL VIA noVNC ===
+let visualLoginSession = null;
+let vncSessionToken = null;
 
-    if (!username || !password) {
-      return res.status(400).json({ success: false, error: 'Username e senha sao obrigatorios.' });
+function clearVisualLogin() {
+  if (visualLoginSession) {
+    console.log('Limpando sessao de login visual...');
+    visualLoginSession.browser.close().catch(() => {});
+    clearTimeout(visualLoginSession.timeout);
+    visualLoginSession = null;
+    vncSessionToken = null;
+  }
+}
+
+// Iniciar login visual via noVNC (sem auth)
+app.post('/api/start-visual-login', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'Token Railway obrigatorio.' });
     }
 
-    // Limpar sessao anterior se existir
-    clearLoginSession();
+    clearVisualLogin();
 
-    const { launchBrowser, setupResourceBlocking } = require('./browser-config');
+    vncSessionToken = crypto.randomBytes(32).toString('hex');
 
-    console.log(`Iniciando login para @${username}...`);
-    const browser = await launchBrowser({ headless: true, slowMo: 100 });
+    const { launchBrowser } = require('./browser-config');
+
+    console.log('Iniciando login visual via noVNC...');
+    const browser = await launchBrowser({ visual: true, slowMo: 50 });
     const context = await browser.newContext({ locale: 'pt-BR' });
     const page = await context.newPage();
-    await setupResourceBlocking(page);
 
-    // 1. Acessar pagina de login do Instagram
-    await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'domcontentloaded', timeout: 60000 });
-    console.log('Pagina carregada, aguardando elementos...');
-    await page.waitForTimeout(5000);
-
-    // 2. Esperar por qualquer campo de login (ate 60s)
-    try {
-      await page.waitForSelector('input[name="email"], input[name="username"], input[type="password"], input[name="pass"]', { timeout: 60000 });
-      console.log('Campo de login encontrado!');
-    } catch (e) {
-      console.log('Campos nao apareceram. Tirando screenshot...');
-      const fs = require('fs');
-      const pathMod = require('path');
-      fs.writeFileSync(pathMod.join(__dirname, 'login-debug.png'), await page.screenshot());
-      await browser.close();
-      return res.status(400).json({ success: false, error: 'Campos de login nao encontrados. Tente novamente.' });
-    }
-
-    // 3. Preencher username (Instagram usa name="email" ou name="username")
-    const usernameField = await page.$('input[name="email"], input[name="username"]');
-    if (usernameField) {
-      console.log('Campo de username encontrado, preenchendo...');
-      await usernameField.fill(username);
-      await page.waitForTimeout(500);
-    }
-
-    // 4. Preencher senha (Instagram usa name="pass" ou type="password")
-    const passwordField = await page.$('input[name="pass"], input[type="password"], input[name="password"]');
-    if (passwordField) {
-      console.log('Campo de senha encontrado, preenchendo...');
-      await passwordField.fill(password);
-      await page.waitForTimeout(1000);
-    } else {
-      await browser.close();
-      return res.status(400).json({ success: false, error: 'Campo de senha nao encontrado.' });
-    }
-
-    // 5. Clicar em Entrar/Log In
-    console.log('Clicando em Entrar...');
-    await page.evaluate(() => {
-      // Procurar botao visivel com texto Entrar/Log In
-      const btns = Array.from(document.querySelectorAll('button, div[role="button"]'));
-      const btn = btns.find(b => ['entrar', 'log in'].includes(b.textContent.trim().toLowerCase()));
-      if (btn) btn.click();
-      else {
-        // Fallback: submit o formulario diretamente
-        const form = document.querySelector('form');
-        if (form) form.submit();
-      }
-    });
-    console.log('Clicou em Entrar, aguardando resposta...');
-    await page.waitForTimeout(15000);
-
-    // Debug: screenshot apos login
-    const fs2 = require('fs');
-    const path2 = require('path');
-    fs2.writeFileSync(path2.join(__dirname, 'after-login.png'), await page.screenshot());
-    console.log('Screenshot pos-login salvo.');
-
-    // 6. Verificar erro de senha
-    const loginError = await page.evaluate(() => {
-      const el = document.querySelector('#slfErrorAlert, [role="alert"], p[data-testid="login-error-message"]');
-      if (el) return el.textContent;
-      // Procurar qualquer texto de erro na pagina
-      const allText = document.body.innerText;
-      if (allText.includes('incorretas') || allText.includes('incorrect')) {
-        return 'Senha incorreta. Verifique suas credenciais.';
-      }
-      return null;
+    await page.goto('https://www.instagram.com/accounts/login/', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000
     });
 
-    if (loginError) {
-      await browser.close();
-      return res.status(401).json({ success: false, error: loginError });
-    }
+    visualLoginSession = {
+      browser, context, page, token,
+      timeout: setTimeout(clearVisualLogin, 600000) // 10 min
+    };
 
-    // 7. Verificar se pede 2FA
-    const has2FA = await page.evaluate(() => {
-      // Buscar por seletores conhecidos
-      const field = document.querySelector('input[name="verificationCode"], input[name="security_code"], input[aria-label*="Security"], input[aria-label*="erifica"], input[aria-label*="segurança"], input[autocomplete="one-time-code"]');
-      if (field) return true;
-      // Buscar pelo texto da pagina
-      const text = document.body.innerText.toLowerCase();
-      return text.includes('código de segurança') || text.includes('security code') || text.includes('autenticação') || text.includes('two-factor');
+    return res.json({
+      success: true,
+      vncToken: vncSessionToken,
+      message: 'Browser aberto. Use o viewer para fazer login.'
     });
-
-    if (has2FA) {
-      console.log('2FA detectado — aguardando codigo...');
-      // Guardar sessao aberta (timeout de 5 min)
-      loginSession = { browser, context, page, token, timeout: setTimeout(clearLoginSession, 300000) };
-      return res.json({ success: true, need2fa: true, message: 'Digite o codigo do autenticador.' });
-    }
-
-    // 6. Tratar telas pos-login
-    const saveInfoBtn = await page.$('button:has-text("Agora não"), button:has-text("Not Now")');
-    if (saveInfoBtn) { await saveInfoBtn.click(); await page.waitForTimeout(3000); }
-
-    const notifBtn = await page.$('button:has-text("Agora não"), button:has-text("Not Now")');
-    if (notifBtn) { await notifBtn.click(); await page.waitForTimeout(3000); }
-
-    // 7. Verificar se logou
-    const isLoggedIn = await page.evaluate(() => {
-      return !document.querySelector('input[name="username"]') && !document.querySelector('input[type="password"]');
-    });
-
-    if (!isLoggedIn) {
-      await browser.close();
-      return res.status(401).json({ success: false, error: 'Login falhou. Verifique suas credenciais.' });
-    }
-
-    // 8. Salvar sessao
-    console.log('Login OK sem 2FA! Salvando...');
-    if (token) await saveSessionToRailway(context, token);
-    await browser.close();
-
-    return res.json({ success: true, message: 'Login realizado e sessao salva!' });
 
   } catch (error) {
-    clearLoginSession();
-    console.error('Erro no login:', error);
+    clearVisualLogin();
+    console.error('Erro ao iniciar login visual:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Endpoint 2FA - etapa 2: codigo do autenticador (sem auth)
-app.post('/api/instagram-2fa', async (req, res) => {
+// Concluir login visual e salvar sessao (sem auth)
+app.post('/api/finish-visual-login', async (req, res) => {
   try {
-    const { token, code } = req.body;
+    const { token } = req.body;
 
-    if (!code) {
-      return res.status(400).json({ success: false, error: 'Codigo 2FA obrigatorio.' });
+    if (!visualLoginSession) {
+      return res.status(400).json({ success: false, error: 'Nenhuma sessao de login ativa.' });
     }
 
-    if (!loginSession) {
-      return res.status(400).json({ success: false, error: 'Sessao de login expirada. Faca login novamente.' });
-    }
+    const { page, context, browser } = visualLoginSession;
+    clearTimeout(visualLoginSession.timeout);
 
-    const { page, context, browser } = loginSession;
-    clearTimeout(loginSession.timeout);
+    const currentUrl = page.url();
+    console.log(`Finalizando login. URL atual: ${currentUrl}`);
 
-    console.log(`Inserindo codigo 2FA: ${code}`);
-
-    // 1. Preencher codigo
-    const codeField = await page.$('input[name="verificationCode"], input[name="security_code"], input[aria-label*="Security"], input[aria-label*="erifica"], input[aria-label*="segurança"], input[autocomplete="one-time-code"]');
-    if (!codeField) {
-      clearLoginSession();
-      return res.status(400).json({ success: false, error: 'Campo de 2FA nao encontrado. Tente fazer login novamente.' });
-    }
-
-    await codeField.fill(code);
-    await page.waitForTimeout(1000);
-
-    // 2. Confirmar
-    const confirmBtn = await page.$('button:has-text("Confirmar"), button[type="submit"], button:has-text("Confirm")');
-    if (confirmBtn) {
-      await confirmBtn.click();
-      console.log('Codigo enviado, aguardando...');
-      await page.waitForTimeout(10000);
-    }
-
-    // 3. Verificar erro de codigo
-    const codeError = await page.evaluate(() => {
-      const el = document.querySelector('[role="alert"], #twoFactorErrorAlert');
-      return el ? el.textContent : null;
+    // Verificar se ainda esta na pagina de login
+    const isStillOnLogin = await page.evaluate(() => {
+      return !!document.querySelector('input[name="email"]') ||
+             !!document.querySelector('input[name="username"]') ||
+             !!document.querySelector('input[type="password"]');
     });
 
-    if (codeError) {
-      // Nao fechar o browser - usuario pode tentar novamente
-      loginSession.timeout = setTimeout(clearLoginSession, 300000);
-      return res.status(401).json({ success: false, error: `Codigo invalido: ${codeError}` });
+    if (isStillOnLogin) {
+      // Reativar timeout
+      visualLoginSession.timeout = setTimeout(clearVisualLogin, 600000);
+      return res.status(400).json({
+        success: false,
+        error: 'Voce ainda nao completou o login. Continue no navegador e tente novamente.'
+      });
     }
 
-    // 4. Tratar telas pos-login
-    const saveInfoBtn = await page.$('button:has-text("Agora não"), button:has-text("Not Now")');
-    if (saveInfoBtn) { await saveInfoBtn.click(); await page.waitForTimeout(3000); }
-
-    const notifBtn = await page.$('button:has-text("Agora não"), button:has-text("Not Now")');
-    if (notifBtn) { await notifBtn.click(); await page.waitForTimeout(3000); }
-
-    // 5. Salvar sessao
-    console.log('2FA OK! Salvando sessao...');
-    const railwayToken = token || loginSession.token;
+    console.log('Login concluido! Salvando sessao...');
+    const railwayToken = token || visualLoginSession.token;
     if (railwayToken) await saveSessionToRailway(context, railwayToken);
 
     await browser.close();
-    loginSession = null;
+    visualLoginSession = null;
+    vncSessionToken = null;
 
-    return res.json({ success: true, message: 'Login com 2FA realizado e sessao salva!' });
+    return res.json({ success: true, message: 'Login concluido e sessao salva na Railway!' });
 
   } catch (error) {
-    clearLoginSession();
-    console.error('Erro no 2FA:', error);
+    clearVisualLogin();
+    console.error('Erro ao finalizar login:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// Status do login visual (sem auth)
+app.get('/api/login-status', (req, res) => {
+  if (!visualLoginSession) {
+    return res.json({ active: false });
+  }
+  const currentUrl = visualLoginSession.page.url();
+  const probablyLoggedIn = !currentUrl.includes('/accounts/login') && !currentUrl.includes('/challenge');
+  return res.json({ active: true, currentUrl, probablyLoggedIn });
 });
 
 // Health check (sem auth)
@@ -602,8 +492,25 @@ app.post('/api/comment-via-rapidapi', authMiddleware, async (req, res) => {
   }
 });
 
-// Iniciar o servidor
-app.listen(PORT, () => {
+// Proxy WebSocket para noVNC (websockify interno na porta 6080)
+const wsProxy = createProxyMiddleware({
+  target: 'http://localhost:6080',
+  ws: true,
+  changeOrigin: true,
+  logger: console
+});
+app.use('/websockify', wsProxy);
+
+// Iniciar o servidor e registrar handler de WebSocket upgrade
+const server = app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
   console.log(`Acesse: http://localhost:${PORT}`);
+});
+
+server.on('upgrade', (req, socket, head) => {
+  if (req.url.startsWith('/websockify')) {
+    wsProxy.upgrade(req, socket, head);
+  } else {
+    socket.destroy();
+  }
 });

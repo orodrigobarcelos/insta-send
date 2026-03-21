@@ -12,6 +12,13 @@ async function launchBrowser(options = {}) {
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   };
 
+  // Modo visual para login via noVNC
+  if (options.visual) {
+    config.headless = false;
+    if (!process.env.DISPLAY) process.env.DISPLAY = ':99';
+    config.args.push('--window-size=1280,720');
+  }
+
   // Adicionar proxy se configurado via variaveis de ambiente
   const proxyHost = process.env.PROXY_HOST;
   const proxyPort = process.env.PROXY_PORT;

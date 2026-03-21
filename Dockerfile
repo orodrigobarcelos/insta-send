@@ -1,6 +1,16 @@
 # Usar imagem oficial do Playwright que já vem com os navegadores e dependências
 FROM mcr.microsoft.com/playwright:v1.51.1-jammy
 
+# Instalar dependencias para display virtual + VNC + noVNC
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    xvfb \
+    x11vnc \
+    python3-pip \
+    python3-numpy \
+    && pip3 install websockify \
+    && git clone --depth 1 https://github.com/novnc/noVNC.git /opt/novnc \
+    && rm -rf /var/lib/apt/lists/*
+
 # Configurar diretório de trabalho
 WORKDIR /app
 
@@ -8,20 +18,21 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Instalar dependências do projeto
-# Usamos chown porque a imagem do playwright pode rodar como root ou pwuser
-# mas queremos garantir permissões corretas
 RUN npm ci
 
 # Copiar o resto do código fonte
 COPY . .
 
+# Tornar script de startup executavel
+RUN chmod +x scripts/start-with-vnc.sh
+
 # Definir variáveis de ambiente padrão
 ENV PORT=3000
 ENV NODE_ENV=production
+ENV DISPLAY=:99
 
 # Expor a porta
 EXPOSE 3000
 
-# Comando para iniciar a aplicação
-# Nota: rodamos "start" que executa "node src/instagram-api-server.js"
-CMD ["npm", "start"]
+# Comando para iniciar (Xvfb + x11vnc + websockify + Node)
+CMD ["./scripts/start-with-vnc.sh"]

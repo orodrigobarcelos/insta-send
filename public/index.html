@@ -128,32 +128,32 @@
       </div>
     </div>
 
-    <!-- ETAPA 2: LOGIN INSTAGRAM -->
+    <!-- ETAPA 2: LOGIN VISUAL VIA noVNC -->
     <div id="loginSection" class="section hidden">
       <h2>Etapa 2 — Login no Instagram</h2>
-      <p class="subtitle" style="margin-bottom: 16px;">Apos o deploy terminar, faca login no Instagram. Sua senha e usada <strong>uma unica vez</strong> e <strong>nao e armazenada</strong>.</p>
+      <p class="subtitle" style="margin-bottom: 16px;">Apos o deploy terminar, clique abaixo para abrir um navegador remoto. Faca login normalmente — qualquer tipo de 2FA e suportado.</p>
 
       <div id="loginError" class="error"></div>
 
-      <div class="field-row">
-        <div><label for="igUsername">Username do Instagram</label><input type="text" id="igUsername" placeholder="seu_usuario"></div>
-        <div><label for="igPassword">Senha do Instagram</label><input type="password" id="igPassword" placeholder="Sua senha"></div>
-      </div>
-
-      <button class="btn btn-green" id="loginBtn" onclick="doLogin()">Fazer Login no Instagram</button>
+      <button class="btn btn-green" id="openBrowserBtn" onclick="startVisualLogin()">Abrir Navegador para Login</button>
     </div>
 
-    <!-- 2FA -->
-    <div id="tfaSection" class="section hidden">
-      <h2>Autenticacao de Dois Fatores</h2>
-      <p class="subtitle" style="margin-bottom: 16px;">Digite o codigo do seu Google Authenticator (ou app de autenticacao).</p>
+    <!-- VIEWER noVNC -->
+    <div id="vncSection" class="section hidden">
+      <h2>Navegador Remoto</h2>
+      <p class="subtitle" style="margin-bottom: 16px;">Faca login no Instagram abaixo. Quando terminar, clique em "Concluir Login".</p>
 
-      <div id="tfaError" class="error"></div>
+      <div id="vncError" class="error"></div>
+      <div id="loginStatus" class="info-banner hidden" style="margin-bottom: 16px;"></div>
 
-      <label for="tfaCode">Codigo 2FA</label>
-      <input type="text" id="tfaCode" placeholder="000000" maxlength="6" style="text-align: center; font-size: 24px; letter-spacing: 8px;">
+      <div style="background: #000; border-radius: 8px; overflow: hidden; margin-bottom: 16px;">
+        <iframe id="vncFrame" style="width: 100%; height: 500px; border: none;"></iframe>
+      </div>
 
-      <button class="btn btn-green" id="tfaBtn" onclick="submit2FA()">Confirmar Codigo</button>
+      <div style="display: flex; gap: 12px;">
+        <button class="btn btn-green" id="finishBtn" onclick="finishVisualLogin()" style="flex: 1;">Concluir Login</button>
+        <button class="btn btn-outline" id="cancelBtn" onclick="cancelVisualLogin()" style="flex: 0 0 auto;">Cancelar</button>
+      </div>
     </div>
 
     <!-- RESULTADO FINAL -->
@@ -243,84 +243,102 @@
       }
     }
 
-    // ===== ETAPA 2: LOGIN INSTAGRAM =====
-    async function doLogin() {
+    // ===== ETAPA 2: LOGIN VISUAL VIA noVNC =====
+    let statusInterval = null;
+
+    async function startVisualLogin() {
       hideError('loginError');
 
-      const username = document.getElementById('igUsername').value.trim();
-      const password = document.getElementById('igPassword').value;
       const token = document.getElementById('railwayToken').value.trim();
+      if (!token) { showError('loginError', 'O token Railway e necessario.'); return; }
 
-      if (!username) { showError('loginError', 'Informe o username do Instagram.'); return; }
-      if (!password) { showError('loginError', 'Informe a senha do Instagram.'); return; }
-
-      setBtn('loginBtn', true, 'Fazer Login no Instagram', 'Fazendo login... (pode levar ate 1 min)');
+      setBtn('openBrowserBtn', true, 'Abrir Navegador para Login', 'Abrindo navegador...');
 
       try {
-        const res = await fetch('/api/instagram-login', {
+        const res = await fetch('/api/start-visual-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, username, password })
+          body: JSON.stringify({ token })
         });
         const data = await res.json();
-
-        if (data.need2fa) {
-          // Mostrar campo de 2FA
-          document.getElementById('tfaSection').classList.remove('hidden');
-          document.getElementById('tfaCode').focus();
-          document.getElementById('tfaSection').scrollIntoView({ behavior: 'smooth' });
-          return;
-        }
-
         if (!data.success) throw new Error(data.error);
 
-        // Login OK sem 2FA
-        showLoginSuccess();
+        // Montar URL do noVNC viewer
+        const vncUrl = `${location.protocol}//${location.host}/novnc/vnc.html?autoconnect=true&resize=scale&path=websockify`;
+        document.getElementById('vncFrame').src = vncUrl;
+
+        // Mostrar viewer
+        document.getElementById('loginSection').classList.add('hidden');
+        document.getElementById('vncSection').classList.remove('hidden');
+        document.getElementById('vncSection').scrollIntoView({ behavior: 'smooth' });
+
+        // Polling de status
+        statusInterval = setInterval(checkLoginStatus, 5000);
 
       } catch (e) {
         showError('loginError', `Erro: ${e.message}`);
       } finally {
-        setBtn('loginBtn', false, 'Fazer Login no Instagram', '');
-        // Limpar senha
-        document.getElementById('igPassword').value = '';
+        setBtn('openBrowserBtn', false, 'Abrir Navegador para Login', '');
       }
     }
 
-    // ===== 2FA =====
-    async function submit2FA() {
-      hideError('tfaError');
+    async function checkLoginStatus() {
+      try {
+        const res = await fetch('/api/login-status');
+        const data = await res.json();
+        const statusEl = document.getElementById('loginStatus');
 
-      const code = document.getElementById('tfaCode').value.trim();
+        if (!data.active) {
+          statusEl.classList.add('hidden');
+          clearInterval(statusInterval);
+          return;
+        }
+
+        if (data.probablyLoggedIn) {
+          statusEl.textContent = 'Login detectado! Clique em "Concluir Login" para salvar a sessao.';
+          statusEl.style.borderColor = '#166534';
+          statusEl.style.color = '#4ade80';
+          statusEl.style.background = '#0a1c0a';
+          statusEl.classList.remove('hidden');
+        }
+      } catch (e) {
+        // silencioso
+      }
+    }
+
+    async function finishVisualLogin() {
+      hideError('vncError');
+
       const token = document.getElementById('railwayToken').value.trim();
-
-      if (!code || code.length < 6) { showError('tfaError', 'Digite o codigo de 6 digitos.'); return; }
-
-      setBtn('tfaBtn', true, 'Confirmar Codigo', 'Verificando codigo...');
+      setBtn('finishBtn', true, 'Concluir Login', 'Salvando sessao...');
 
       try {
-        const res = await fetch('/api/instagram-2fa', {
+        const res = await fetch('/api/finish-visual-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, code })
+          body: JSON.stringify({ token })
         });
         const data = await res.json();
-
         if (!data.success) throw new Error(data.error);
 
-        showLoginSuccess();
+        clearInterval(statusInterval);
+        document.getElementById('vncFrame').src = '';
+        document.getElementById('vncSection').classList.add('hidden');
+        document.getElementById('finalResult').classList.remove('hidden');
+        document.getElementById('finalResult').scrollIntoView({ behavior: 'smooth' });
 
       } catch (e) {
-        showError('tfaError', `Erro: ${e.message}`);
+        showError('vncError', `Erro: ${e.message}`);
       } finally {
-        setBtn('tfaBtn', false, 'Confirmar Codigo', '');
+        setBtn('finishBtn', false, 'Concluir Login', '');
       }
     }
 
-    function showLoginSuccess() {
-      document.getElementById('loginSection').classList.add('hidden');
-      document.getElementById('tfaSection').classList.add('hidden');
-      document.getElementById('finalResult').classList.remove('hidden');
-      document.getElementById('finalResult').scrollIntoView({ behavior: 'smooth' });
+    function cancelVisualLogin() {
+      clearInterval(statusInterval);
+      document.getElementById('vncFrame').src = '';
+      document.getElementById('vncSection').classList.add('hidden');
+      document.getElementById('loginSection').classList.remove('hidden');
     }
   </script>
 </body>

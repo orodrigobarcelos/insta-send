@@ -177,7 +177,7 @@ function clearVisualLogin() {
 // Iniciar login visual via noVNC (sem auth)
 app.post('/api/start-visual-login', async (req, res) => {
   try {
-    const { token } = req.body;
+    const { token, proxy } = req.body;
 
     if (!token) {
       return res.status(400).json({ success: false, error: 'Token Railway obrigatorio.' });
@@ -190,7 +190,11 @@ app.post('/api/start-visual-login', async (req, res) => {
     const { launchBrowser, setupResourceBlocking } = require('./browser-config');
 
     console.log('Iniciando login visual via noVNC...');
-    const browser = await launchBrowser({ visual: true, slowMo: 50 });
+    const launchOptions = { visual: true, slowMo: 50 };
+    if (proxy && proxy.host && proxy.port) {
+      launchOptions.proxy = proxy;
+    }
+    const browser = await launchBrowser(launchOptions);
     const context = await browser.newContext({ locale: 'pt-BR' });
     const page = await context.newPage();
     await setupResourceBlocking(page);

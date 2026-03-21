@@ -19,14 +19,14 @@ async function launchBrowser(options = {}) {
     config.args.push('--window-size=1280,720');
   }
 
-  // Adicionar proxy se configurado via variaveis de ambiente
-  const proxyHost = process.env.PROXY_HOST;
-  const proxyPort = process.env.PROXY_PORT;
+  // Adicionar proxy: prioridade para options.proxy, fallback para env
+  const proxyHost = options.proxy?.host || process.env.PROXY_HOST;
+  const proxyPort = options.proxy?.port || process.env.PROXY_PORT;
   if (proxyHost && proxyPort) {
     config.proxy = {
       server: `http://${proxyHost}:${proxyPort}`,
-      username: process.env.PROXY_USER || '',
-      password: process.env.PROXY_PASS || ''
+      username: options.proxy?.user || process.env.PROXY_USER || '',
+      password: options.proxy?.pass || process.env.PROXY_PASS || ''
     };
     console.log(`Proxy configurado: ${proxyHost}:${proxyPort}`);
   }

@@ -252,13 +252,19 @@
       hideError('loginError');
 
       const token = document.getElementById('railwayToken').value.trim();
+      const proxy = {
+        host: document.getElementById('proxyHost').value.trim(),
+        port: document.getElementById('proxyPort').value.trim(),
+        user: document.getElementById('proxyUser').value.trim(),
+        pass: document.getElementById('proxyPass').value.trim()
+      };
       setBtn('openBrowserBtn', true, 'Abrir Navegador para Login', 'Abrindo navegador...');
 
       try {
         const res = await fetch('/api/start-visual-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token })
+          body: JSON.stringify({ token, proxy })
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error);

@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     x11vnc \
     matchbox-window-manager \
+    x11-xkb-utils \
     python3-pip \
     python3-numpy \
     && pip3 install --no-cache-dir websockify \

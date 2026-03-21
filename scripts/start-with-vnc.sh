@@ -7,7 +7,11 @@ Xvfb :99 -screen 0 1280x720x24 -ac &
 export DISPLAY=:99
 sleep 2
 
-# 2. Iniciar matchbox (window manager que maximiza tudo sem decoracao)
+# 2. Configurar teclado brasileiro
+echo "[startup] Configurando teclado pt-BR..."
+setxkbmap -layout br 2>/dev/null || echo "[startup] setxkbmap nao disponivel, usando layout padrao"
+
+# 3. Iniciar matchbox (window manager que maximiza tudo sem decoracao)
 echo "[startup] Iniciando matchbox-window-manager..."
 matchbox-window-manager -use_titlebar no -use_cursor no &
 sleep 1

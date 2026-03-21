@@ -321,8 +321,6 @@
   </div>
 
   <script>
-    const RAILWAY_API = 'https://backboard.railway.com/graphql/v2';
-
     function generateApiKey() {
       const array = new Uint8Array(32);
       crypto.getRandomValues(array);
@@ -403,25 +401,6 @@
       }
     }
 
-    async function railwayQuery(token, query, variables = {}) {
-      const res = await fetch(RAILWAY_API, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Project-Access-Token': token
-        },
-        body: JSON.stringify({ query, variables })
-      });
-
-      const data = await res.json();
-
-      if (data.errors) {
-        throw new Error(data.errors.map(e => e.message).join(', '));
-      }
-
-      return data.data;
-    }
-
     async function saveToRailway() {
       hideError();
 
@@ -483,33 +462,23 @@
       setLoading(true);
 
       try {
-        // 1. Obter projectId e environmentId do token
-        const tokenData = await railwayQuery(token, '{ projectToken { projectId environmentId } }');
-        const { projectId, environmentId } = tokenData.projectToken;
+        const res = await fetch('/api/setup-railway', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, variables: envVars })
+        });
 
-        // 2. Setar variaveis uma a uma (mais compativel com project tokens)
-        const savedNames = [];
-        for (const [name, value] of Object.entries(envVars)) {
-          await railwayQuery(token,
-            `mutation($input: VariableUpsertInput!) { variableUpsert(input: $input) }`,
-            {
-              input: {
-                projectId,
-                environmentId,
-                name,
-                value
-              }
-            }
-          );
-          savedNames.push(name);
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error);
         }
 
-        // 3. Mostrar sucesso
         document.getElementById('resultBanner').textContent =
-          `${savedNames.length} variaveis salvas na Railway com sucesso!`;
+          `${data.saved.length} variaveis salvas na Railway com sucesso!`;
 
         document.getElementById('savedVars').innerHTML =
-          savedNames.map(n => `<span>${n}</span>`).join('<br>');
+          data.saved.map(n => `<span>${n}</span>`).join('<br>');
 
         document.getElementById('resultSection').classList.add('visible');
         document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });

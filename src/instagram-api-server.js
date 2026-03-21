@@ -38,6 +38,56 @@ function authMiddleware(req, res, next) {
   next();
 }
 
+// Endpoint de setup - salva variaveis na Railway via API (sem auth)
+app.post('/api/setup-railway', async (req, res) => {
+  try {
+    const { token, variables } = req.body;
+
+    if (!token || !variables || typeof variables !== 'object') {
+      return res.status(400).json({ success: false, error: 'Token e variables sao obrigatorios.' });
+    }
+
+    const RAILWAY_API = 'https://backboard.railway.com/graphql/v2';
+
+    // 1. Obter projectId e environmentId do token
+    const tokenRes = await fetch(RAILWAY_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Project-Access-Token': token },
+      body: JSON.stringify({ query: '{ projectToken { projectId environmentId } }' })
+    });
+    const tokenData = await tokenRes.json();
+
+    if (tokenData.errors) {
+      return res.status(400).json({ success: false, error: 'Token invalido: ' + tokenData.errors.map(e => e.message).join(', ') });
+    }
+
+    const { projectId, environmentId } = tokenData.data.projectToken;
+
+    // 2. Setar cada variavel
+    const savedNames = [];
+    for (const [name, value] of Object.entries(variables)) {
+      const upsertRes = await fetch(RAILWAY_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Project-Access-Token': token },
+        body: JSON.stringify({
+          query: 'mutation($input: VariableUpsertInput!) { variableUpsert(input: $input) }',
+          variables: { input: { projectId, environmentId, name, value } }
+        })
+      });
+      const upsertData = await upsertRes.json();
+      if (upsertData.errors) {
+        return res.status(400).json({ success: false, error: `Erro ao salvar ${name}: ${upsertData.errors.map(e => e.message).join(', ')}` });
+      }
+      savedNames.push(name);
+    }
+
+    return res.json({ success: true, saved: savedNames });
+  } catch (error) {
+    console.error('Erro no setup Railway:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Health check (sem auth)
 app.get('/api/health', (req, res) => {
   res.json({

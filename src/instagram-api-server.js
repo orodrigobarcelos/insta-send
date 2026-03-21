@@ -108,142 +108,234 @@ app.post('/api/setup-railway', async (req, res) => {
   }
 });
 
-// Endpoint de login - faz login no Instagram e salva sessao na Railway (sem auth)
+// Sessao de login ativa (browser aberto aguardando 2FA)
+let loginSession = null;
+
+// Limpar sessao de login apos timeout
+function clearLoginSession() {
+  if (loginSession) {
+    console.log('Limpando sessao de login...');
+    loginSession.browser.close().catch(() => {});
+    loginSession = null;
+  }
+}
+
+// Salvar sessao do Instagram na Railway
+async function saveSessionToRailway(context, token) {
+  const { getAuthFilePath } = require('./instagram-auth-state');
+  const fs = require('fs');
+  const AUTH_FILE = getAuthFilePath();
+
+  const storageState = await context.storageState();
+  fs.writeFileSync(AUTH_FILE, JSON.stringify(storageState));
+
+  const base64 = Buffer.from(JSON.stringify(storageState)).toString('base64');
+  const RAILWAY_API = 'https://backboard.railway.com/graphql/v2';
+
+  const tokenRes = await fetch(RAILWAY_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Project-Access-Token': token },
+    body: JSON.stringify({ query: '{ projectToken { projectId environmentId } }' })
+  });
+  const tokenData = await tokenRes.json();
+  if (tokenData.errors) return;
+
+  const { projectId, environmentId } = tokenData.data.projectToken;
+
+  const servicesRes = await fetch(RAILWAY_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Project-Access-Token': token },
+    body: JSON.stringify({
+      query: 'query($projectId: String!) { project(id: $projectId) { services { edges { node { id } } } } }',
+      variables: { projectId }
+    })
+  });
+  const servicesData = await servicesRes.json();
+  const serviceId = servicesData.data?.project?.services?.edges?.[0]?.node?.id || null;
+
+  const input = { projectId, environmentId, name: 'INSTAGRAM_AUTH_DATA', value: base64 };
+  if (serviceId) input.serviceId = serviceId;
+
+  await fetch(RAILWAY_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Project-Access-Token': token },
+    body: JSON.stringify({
+      query: 'mutation($input: VariableUpsertInput!) { variableUpsert(input: $input) }',
+      variables: { input }
+    })
+  });
+
+  console.log('Sessao salva na Railway com sucesso!');
+}
+
+// Endpoint de login - etapa 1: username + senha (sem auth)
 app.post('/api/instagram-login', async (req, res) => {
   try {
-    const { token, password } = req.body;
+    const { token, username, password } = req.body;
 
-    if (!token || !password) {
-      return res.status(400).json({ success: false, error: 'Token da Railway e senha do Instagram sao obrigatorios.' });
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'Username e senha sao obrigatorios.' });
     }
+
+    // Limpar sessao anterior se existir
+    clearLoginSession();
 
     const { launchBrowser, setupResourceBlocking } = require('./browser-config');
-    const { getAuthFilePath } = require('./instagram-auth-state');
-    const fs = require('fs');
-    const AUTH_FILE = getAuthFilePath();
 
-    // Verificar se ja temos cookies (do Cookie-Editor)
-    if (!fs.existsSync(AUTH_FILE)) {
-      return res.status(400).json({ success: false, error: 'Cookies do Instagram nao encontrados. Configure primeiro pelo frontend.' });
-    }
-
-    console.log('Iniciando login no Instagram...');
+    console.log(`Iniciando login para @${username}...`);
     const browser = await launchBrowser({ headless: true, slowMo: 100 });
-    const context = await browser.newContext({ storageState: AUTH_FILE, locale: 'pt-BR' });
+    const context = await browser.newContext({ locale: 'pt-BR' });
     const page = await context.newPage();
     await setupResourceBlocking(page);
 
-    // 1. Acessar Instagram
-    await page.goto('https://www.instagram.com/');
+    // 1. Acessar pagina de login
+    await page.goto('https://www.instagram.com/accounts/login/');
     await page.waitForTimeout(5000);
 
-    // 2. Clicar em "Continuar" se aparecer
-    const continueBtn = await page.$('button:has-text("Continuar"), div[role="button"]:has-text("Continuar")');
-    if (continueBtn) {
-      console.log('Clicando em "Continuar"...');
-      await continueBtn.click();
-      await page.waitForTimeout(5000);
+    // 2. Preencher username e senha
+    const usernameField = await page.$('input[name="username"]');
+    const passwordField = await page.$('input[name="password"]');
+
+    if (!usernameField || !passwordField) {
+      await browser.close();
+      return res.status(400).json({ success: false, error: 'Pagina de login nao carregou corretamente.' });
     }
 
-    // 3. Preencher senha se pedir
-    const passwordField = await page.$('input[type="password"]');
-    if (passwordField) {
-      console.log('Campo de senha detectado, preenchendo...');
-      await passwordField.fill(password);
-      await page.waitForTimeout(1000);
+    await usernameField.fill(username);
+    await page.waitForTimeout(500);
+    await passwordField.fill(password);
+    await page.waitForTimeout(1000);
 
-      // Clicar em "Entrar"
-      const loginBtn = await page.$('button:has-text("Entrar"), button[type="submit"]');
-      if (loginBtn) {
-        await loginBtn.click();
-        console.log('Clicou em Entrar, aguardando...');
-        await page.waitForTimeout(10000);
-      }
+    // 3. Clicar em Entrar
+    const loginBtn = await page.$('button[type="submit"]');
+    if (loginBtn) {
+      await loginBtn.click();
+      console.log('Clicou em Entrar, aguardando resposta...');
+      await page.waitForTimeout(8000);
     }
 
-    // 4. Tratar tela "Salvar informacoes de login"
+    // 4. Verificar se deu erro de senha
+    const loginError = await page.evaluate(() => {
+      const el = document.querySelector('#slfErrorAlert, [role="alert"]');
+      return el ? el.textContent : null;
+    });
+
+    if (loginError) {
+      await browser.close();
+      return res.status(401).json({ success: false, error: `Erro de login: ${loginError}` });
+    }
+
+    // 5. Verificar se pede 2FA
+    const has2FA = await page.evaluate(() => {
+      return !!document.querySelector('input[name="verificationCode"], input[name="security_code"], input[aria-label*="Security"], input[aria-label*="erifica"]');
+    });
+
+    if (has2FA) {
+      console.log('2FA detectado — aguardando codigo...');
+      // Guardar sessao aberta (timeout de 5 min)
+      loginSession = { browser, context, page, token, timeout: setTimeout(clearLoginSession, 300000) };
+      return res.json({ success: true, need2fa: true, message: 'Digite o codigo do autenticador.' });
+    }
+
+    // 6. Tratar telas pos-login
     const saveInfoBtn = await page.$('button:has-text("Agora não"), button:has-text("Not Now")');
-    if (saveInfoBtn) {
-      console.log('Tela "Salvar informacoes" — clicando "Agora não"...');
-      await saveInfoBtn.click();
-      await page.waitForTimeout(3000);
-    }
+    if (saveInfoBtn) { await saveInfoBtn.click(); await page.waitForTimeout(3000); }
 
-    // 5. Tratar tela de notificacoes
     const notifBtn = await page.$('button:has-text("Agora não"), button:has-text("Not Now")');
-    if (notifBtn) {
-      await notifBtn.click();
-      await page.waitForTimeout(3000);
-    }
+    if (notifBtn) { await notifBtn.click(); await page.waitForTimeout(3000); }
 
-    // 6. Verificar se logou com sucesso
+    // 7. Verificar se logou
     const isLoggedIn = await page.evaluate(() => {
-      return !document.querySelector('input[type="password"]') && !document.querySelector('input[name="username"]');
+      return !document.querySelector('input[name="username"]') && !document.querySelector('input[type="password"]');
     });
 
     if (!isLoggedIn) {
-      const screenshot = await page.screenshot();
       await browser.close();
-      res.set('Content-Type', 'image/png');
-      return res.status(401).send(screenshot);
+      return res.status(401).json({ success: false, error: 'Login falhou. Verifique suas credenciais.' });
     }
 
-    // 7. Salvar sessao completa
-    console.log('Login bem-sucedido! Salvando sessao...');
-    const storageState = await context.storageState();
+    // 8. Salvar sessao
+    console.log('Login OK sem 2FA! Salvando...');
+    if (token) await saveSessionToRailway(context, token);
     await browser.close();
 
-    // 8. Salvar localmente
-    fs.writeFileSync(AUTH_FILE, JSON.stringify(storageState));
-
-    // 9. Salvar na Railway como INSTAGRAM_AUTH_DATA (se token fornecido)
-    const base64 = Buffer.from(JSON.stringify(storageState)).toString('base64');
-
-    const RAILWAY_API = 'https://backboard.railway.com/graphql/v2';
-
-    // Obter IDs do token
-    const tokenRes = await fetch(RAILWAY_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Project-Access-Token': token },
-      body: JSON.stringify({ query: '{ projectToken { projectId environmentId } }' })
-    });
-    const tokenData = await tokenRes.json();
-    if (tokenData.errors) {
-      return res.json({ success: true, warning: 'Login OK mas falhou ao salvar na Railway: ' + tokenData.errors.map(e => e.message).join(', ') });
-    }
-
-    const { projectId, environmentId } = tokenData.data.projectToken;
-
-    // Obter serviceId
-    const servicesRes = await fetch(RAILWAY_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Project-Access-Token': token },
-      body: JSON.stringify({
-        query: 'query($projectId: String!) { project(id: $projectId) { services { edges { node { id } } } } }',
-        variables: { projectId }
-      })
-    });
-    const servicesData = await servicesRes.json();
-    const serviceId = servicesData.data?.project?.services?.edges?.[0]?.node?.id || null;
-
-    // Salvar INSTAGRAM_AUTH_DATA
-    const input = { projectId, environmentId, name: 'INSTAGRAM_AUTH_DATA', value: base64 };
-    if (serviceId) input.serviceId = serviceId;
-
-    await fetch(RAILWAY_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Project-Access-Token': token },
-      body: JSON.stringify({
-        query: 'mutation($input: VariableUpsertInput!) { variableUpsert(input: $input) }',
-        variables: { input }
-      })
-    });
-
-    console.log('Sessao salva na Railway com sucesso!');
-    return res.json({ success: true, message: 'Login realizado e sessao salva na Railway!' });
+    return res.json({ success: true, message: 'Login realizado e sessao salva!' });
 
   } catch (error) {
+    clearLoginSession();
     console.error('Erro no login:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Endpoint 2FA - etapa 2: codigo do autenticador (sem auth)
+app.post('/api/instagram-2fa', async (req, res) => {
+  try {
+    const { token, code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ success: false, error: 'Codigo 2FA obrigatorio.' });
+    }
+
+    if (!loginSession) {
+      return res.status(400).json({ success: false, error: 'Sessao de login expirada. Faca login novamente.' });
+    }
+
+    const { page, context, browser } = loginSession;
+    clearTimeout(loginSession.timeout);
+
+    console.log(`Inserindo codigo 2FA: ${code}`);
+
+    // 1. Preencher codigo
+    const codeField = await page.$('input[name="verificationCode"], input[name="security_code"], input[aria-label*="Security"], input[aria-label*="erifica"]');
+    if (!codeField) {
+      clearLoginSession();
+      return res.status(400).json({ success: false, error: 'Campo de 2FA nao encontrado. Tente fazer login novamente.' });
+    }
+
+    await codeField.fill(code);
+    await page.waitForTimeout(1000);
+
+    // 2. Confirmar
+    const confirmBtn = await page.$('button:has-text("Confirmar"), button[type="submit"], button:has-text("Confirm")');
+    if (confirmBtn) {
+      await confirmBtn.click();
+      console.log('Codigo enviado, aguardando...');
+      await page.waitForTimeout(10000);
+    }
+
+    // 3. Verificar erro de codigo
+    const codeError = await page.evaluate(() => {
+      const el = document.querySelector('[role="alert"], #twoFactorErrorAlert');
+      return el ? el.textContent : null;
+    });
+
+    if (codeError) {
+      // Nao fechar o browser - usuario pode tentar novamente
+      loginSession.timeout = setTimeout(clearLoginSession, 300000);
+      return res.status(401).json({ success: false, error: `Codigo invalido: ${codeError}` });
+    }
+
+    // 4. Tratar telas pos-login
+    const saveInfoBtn = await page.$('button:has-text("Agora não"), button:has-text("Not Now")');
+    if (saveInfoBtn) { await saveInfoBtn.click(); await page.waitForTimeout(3000); }
+
+    const notifBtn = await page.$('button:has-text("Agora não"), button:has-text("Not Now")');
+    if (notifBtn) { await notifBtn.click(); await page.waitForTimeout(3000); }
+
+    // 5. Salvar sessao
+    console.log('2FA OK! Salvando sessao...');
+    const railwayToken = token || loginSession.token;
+    if (railwayToken) await saveSessionToRailway(context, railwayToken);
+
+    await browser.close();
+    loginSession = null;
+
+    return res.json({ success: true, message: 'Login com 2FA realizado e sessao salva!' });
+
+  } catch (error) {
+    clearLoginSession();
+    console.error('Erro no 2FA:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
 });

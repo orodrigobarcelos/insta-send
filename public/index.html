@@ -13,20 +13,9 @@
       min-height: 100vh;
       padding: 20px;
     }
-    .container {
-      max-width: 720px;
-      margin: 0 auto;
-    }
-    h1 {
-      font-size: 28px;
-      margin-bottom: 8px;
-      color: #fff;
-    }
-    .subtitle {
-      color: #888;
-      margin-bottom: 32px;
-      font-size: 14px;
-    }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 28px; margin-bottom: 8px; color: #fff; }
+    .subtitle { color: #888; margin-bottom: 32px; font-size: 14px; }
     .section {
       background: #141414;
       border: 1px solid #222;
@@ -34,236 +23,74 @@
       padding: 24px;
       margin-bottom: 20px;
     }
-    .section h2 {
-      font-size: 18px;
-      margin-bottom: 16px;
-      color: #fff;
-    }
-    .step {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 14px;
-      align-items: flex-start;
-    }
+    .section h2 { font-size: 18px; margin-bottom: 16px; color: #fff; }
+    .step { display: flex; gap: 12px; margin-bottom: 14px; align-items: flex-start; }
     .step-number {
-      background: #2563eb;
-      color: #fff;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-      font-weight: 700;
-      flex-shrink: 0;
+      background: #2563eb; color: #fff; width: 28px; height: 28px;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; flex-shrink: 0;
     }
-    .step-text {
-      font-size: 14px;
-      line-height: 1.5;
-      padding-top: 3px;
+    .step-text { font-size: 14px; line-height: 1.5; padding-top: 3px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #aaa; }
+    input {
+      width: 100%; background: #0a0a0a; border: 1px solid #333;
+      border-radius: 8px; padding: 10px 12px; color: #e0e0e0;
+      font-size: 14px; font-family: inherit; margin-bottom: 16px;
     }
-    .step-text a {
-      color: #60a5fa;
-      text-decoration: none;
-    }
-    .step-text a:hover {
-      text-decoration: underline;
-    }
-    label {
-      display: block;
-      font-size: 13px;
-      font-weight: 600;
-      margin-bottom: 6px;
-      color: #aaa;
-    }
-    input, textarea {
-      width: 100%;
-      background: #0a0a0a;
-      border: 1px solid #333;
-      border-radius: 8px;
-      padding: 10px 12px;
-      color: #e0e0e0;
-      font-size: 14px;
-      font-family: inherit;
-      margin-bottom: 16px;
-    }
-    input:focus, textarea:focus {
-      outline: none;
-      border-color: #2563eb;
-    }
-    textarea {
-      resize: vertical;
-      min-height: 120px;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 12px;
-    }
-    .field-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-    .field-row-4 {
-      display: grid;
-      grid-template-columns: 2fr 1fr 1fr 1fr;
-      gap: 12px;
-    }
-    .api-key-row {
-      display: flex;
-      gap: 8px;
-    }
-    .api-key-row input {
-      flex: 1;
-      margin-bottom: 0;
-    }
+    input:focus { outline: none; border-color: #2563eb; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .field-row-4 { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; }
+    .api-key-row { display: flex; gap: 8px; }
+    .api-key-row input { flex: 1; margin-bottom: 0; }
     .btn {
-      background: #2563eb;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 12px 24px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      width: 100%;
+      background: #2563eb; color: #fff; border: none; border-radius: 8px;
+      padding: 12px 24px; font-size: 15px; font-weight: 600; cursor: pointer; width: 100%;
     }
-    .btn:hover {
-      background: #1d4ed8;
-    }
-    .btn:disabled {
-      background: #1e3a5f;
-      cursor: not-allowed;
-      opacity: 0.7;
-    }
-    .btn-sm {
-      padding: 10px 16px;
-      font-size: 13px;
-      width: auto;
-      white-space: nowrap;
-    }
-    .btn-outline {
-      background: transparent;
-      border: 1px solid #333;
-      color: #aaa;
-    }
-    .btn-outline:hover {
-      border-color: #555;
-      color: #fff;
-    }
-    .result-section {
-      display: none;
-    }
-    .result-section.visible {
-      display: block;
-    }
+    .btn:hover { background: #1d4ed8; }
+    .btn:disabled { background: #1e3a5f; cursor: not-allowed; opacity: 0.7; }
+    .btn-sm { padding: 10px 16px; font-size: 13px; width: auto; white-space: nowrap; }
+    .btn-outline { background: transparent; border: 1px solid #333; color: #aaa; }
+    .btn-outline:hover { border-color: #555; color: #fff; }
+    .btn-green { background: #16a34a; }
+    .btn-green:hover { background: #15803d; }
     .error {
-      background: #1c0a0a;
-      border: 1px solid #7f1d1d;
-      color: #fca5a5;
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 16px;
-      font-size: 13px;
-      display: none;
+      background: #1c0a0a; border: 1px solid #7f1d1d; color: #fca5a5;
+      padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; display: none;
     }
-    .error.visible {
-      display: block;
-    }
+    .error.visible { display: block; }
     .success-banner {
-      background: #0a1c0a;
-      border: 1px solid #166534;
-      color: #4ade80;
-      padding: 16px;
-      border-radius: 8px;
-      margin-bottom: 16px;
-      font-size: 14px;
-      font-weight: 600;
-      text-align: center;
+      background: #0a1c0a; border: 1px solid #166534; color: #4ade80;
+      padding: 16px; border-radius: 8px; margin-bottom: 16px;
+      font-size: 14px; font-weight: 600; text-align: center;
     }
-    .divider {
-      border: none;
-      border-top: 1px solid #222;
-      margin: 24px 0;
+    .info-banner {
+      background: #0a1424; border: 1px solid #1e3a5f; color: #60a5fa;
+      padding: 16px; border-radius: 8px; margin-bottom: 16px;
+      font-size: 14px; text-align: center;
     }
-    .hint {
-      font-size: 12px;
-      color: #666;
-      margin-top: -12px;
-      margin-bottom: 16px;
-    }
+    .divider { border: none; border-top: 1px solid #222; margin: 24px 0; }
+    .hint { font-size: 12px; color: #666; margin-top: -12px; margin-bottom: 16px; }
     .loading {
-      display: inline-block;
-      width: 16px;
-      height: 16px;
-      border: 2px solid #fff;
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      vertical-align: middle;
-      margin-right: 8px;
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid #fff; border-top-color: transparent;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      vertical-align: middle; margin-right: 8px;
     }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    .saved-vars {
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 12px;
-      color: #4ade80;
-      line-height: 1.8;
-    }
-    .saved-vars span {
-      color: #60a5fa;
-    }
-    @media (max-width: 600px) {
-      .field-row, .field-row-4 {
-        grid-template-columns: 1fr;
-      }
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none; }
+    .saved-vars { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: #4ade80; line-height: 1.8; }
+    .saved-vars span { color: #60a5fa; }
+    @media (max-width: 600px) { .field-row, .field-row-4 { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>INSTA_SEND</h1>
-    <p class="subtitle">Configure seu bot de automacao do Instagram em poucos passos</p>
+    <p class="subtitle">Configure seu bot de automacao do Instagram</p>
 
-    <!-- INSTRUCOES -->
+    <!-- ETAPA 1: CONFIGURACAO -->
     <div class="section">
-      <h2>Como exportar seus cookies do Instagram</h2>
-      <div class="step">
-        <div class="step-number">1</div>
-        <div class="step-text">
-          Instale a extensao <a href="https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm" target="_blank">Cookie-Editor</a> no Chrome
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-number">2</div>
-        <div class="step-text">
-          Abra o <a href="https://www.instagram.com" target="_blank">Instagram</a> no Chrome e certifique-se de estar logado
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-number">3</div>
-        <div class="step-text">
-          Clique no icone da extensao Cookie-Editor na barra do Chrome
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-number">4</div>
-        <div class="step-text">
-          Clique no botao <strong>Export</strong> (icone de seta) na parte inferior e escolha <strong>JSON</strong>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-number">5</div>
-        <div class="step-text">
-          Cole o JSON no campo abaixo (Ctrl+V)
-        </div>
-      </div>
-    </div>
-
-    <!-- FORMULARIO -->
-    <div class="section">
-      <h2>Configuracao</h2>
+      <h2>Etapa 1 — Configuracao</h2>
 
       <div id="error" class="error"></div>
 
@@ -271,14 +98,8 @@
       <input type="password" id="railwayToken" placeholder="Cole o token gerado em Project Settings > Tokens">
       <p class="hint">Gere em: Railway > seu projeto > Settings > Tokens > Create</p>
 
-      <hr class="divider">
-
-      <label for="cookies">Cookies do Instagram (JSON do Cookie-Editor)</label>
-      <textarea id="cookies" placeholder='Cole aqui o JSON exportado do Cookie-Editor...'></textarea>
-
       <label for="rapidApiKey">RapidAPI Key</label>
       <input type="text" id="rapidApiKey" placeholder="Sua chave da RapidAPI">
-      <p class="hint">Necessaria para buscar dados de perfis do Instagram</p>
 
       <label for="apiKey">API Key (protege seus endpoints)</label>
       <div class="api-key-row" style="margin-bottom: 16px;">
@@ -287,53 +108,64 @@
       </div>
 
       <hr class="divider">
-
       <h2>Proxy Residencial</h2>
-
       <div class="field-row-4">
-        <div>
-          <label for="proxyHost">Host</label>
-          <input type="text" id="proxyHost" placeholder="core-residential.evomi.com">
-        </div>
-        <div>
-          <label for="proxyPort">Porta</label>
-          <input type="text" id="proxyPort" placeholder="1000">
-        </div>
-        <div>
-          <label for="proxyUser">Usuario</label>
-          <input type="text" id="proxyUser" placeholder="user123">
-        </div>
-        <div>
-          <label for="proxyPass">Senha</label>
-          <input type="password" id="proxyPass" placeholder="senha">
-        </div>
+        <div><label for="proxyHost">Host</label><input type="text" id="proxyHost" placeholder="core-residential.evomi.com"></div>
+        <div><label for="proxyPort">Porta</label><input type="text" id="proxyPort" placeholder="1000"></div>
+        <div><label for="proxyUser">Usuario</label><input type="text" id="proxyUser" placeholder="user123"></div>
+        <div><label for="proxyPass">Senha</label><input type="password" id="proxyPass" placeholder="senha"></div>
       </div>
 
       <button class="btn" id="saveBtn" onclick="saveToRailway()">Salvar na Railway</button>
     </div>
 
-    <!-- RESULTADO -->
-    <div id="resultSection" class="section result-section">
-      <div class="success-banner" id="resultBanner"></div>
-      <h2>Variaveis configuradas</h2>
+    <!-- RESULTADO ETAPA 1 -->
+    <div id="step1Result" class="section hidden">
+      <div class="success-banner">Variaveis salvas na Railway com sucesso!</div>
       <div id="savedVars" class="saved-vars"></div>
+      <div class="info-banner" style="margin-top: 16px;">
+        Aguarde o deploy terminar na Railway (1-3 min) antes de prosseguir para a Etapa 2.
+      </div>
     </div>
 
-    <!-- ETAPA 2: LOGIN -->
-    <div id="loginSection" class="section" style="display:none;">
-      <h2>Ativar sessao do Instagram</h2>
-      <p class="subtitle" style="margin-bottom: 16px;">O Instagram pede a senha na primeira vez que acessa de um servidor novo. Digite sua senha abaixo — ela sera usada <strong>uma unica vez</strong> para fazer login e <strong>nao sera armazenada</strong>.</p>
+    <!-- ETAPA 2: LOGIN INSTAGRAM -->
+    <div id="loginSection" class="section hidden">
+      <h2>Etapa 2 — Login no Instagram</h2>
+      <p class="subtitle" style="margin-bottom: 16px;">Apos o deploy terminar, faca login no Instagram. Sua senha e usada <strong>uma unica vez</strong> e <strong>nao e armazenada</strong>.</p>
 
       <div id="loginError" class="error"></div>
 
-      <label for="igPassword">Senha do Instagram</label>
-      <input type="password" id="igPassword" placeholder="Sua senha do Instagram">
-      <p class="hint">Usada apenas uma vez via HTTPS. Nao e salva em nenhum lugar.</p>
+      <div class="field-row">
+        <div><label for="igUsername">Username do Instagram</label><input type="text" id="igUsername" placeholder="seu_usuario"></div>
+        <div><label for="igPassword">Senha do Instagram</label><input type="password" id="igPassword" placeholder="Sua senha"></div>
+      </div>
 
-      <button class="btn" id="loginBtn" onclick="doInstagramLogin()">Ativar Sessao</button>
+      <button class="btn btn-green" id="loginBtn" onclick="doLogin()">Fazer Login no Instagram</button>
+    </div>
 
-      <div id="loginResult" class="result-section">
-        <div class="success-banner" id="loginResultBanner"></div>
+    <!-- 2FA -->
+    <div id="tfaSection" class="section hidden">
+      <h2>Autenticacao de Dois Fatores</h2>
+      <p class="subtitle" style="margin-bottom: 16px;">Digite o codigo do seu Google Authenticator (ou app de autenticacao).</p>
+
+      <div id="tfaError" class="error"></div>
+
+      <label for="tfaCode">Codigo 2FA</label>
+      <input type="text" id="tfaCode" placeholder="000000" maxlength="6" style="text-align: center; font-size: 24px; letter-spacing: 8px;">
+
+      <button class="btn btn-green" id="tfaBtn" onclick="submit2FA()">Confirmar Codigo</button>
+    </div>
+
+    <!-- RESULTADO FINAL -->
+    <div id="finalResult" class="section hidden">
+      <div class="success-banner">Login realizado e sessao salva na Railway com sucesso!</div>
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-text">A Railway vai redeployar automaticamente com a sessao ativa.</div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-text">Apos o deploy, seu bot estara pronto para comentar e enviar DMs.</div>
       </div>
     </div>
   </div>
@@ -342,88 +174,35 @@
     function generateApiKey() {
       const array = new Uint8Array(32);
       crypto.getRandomValues(array);
-      const key = Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
-      document.getElementById('apiKey').value = key;
+      document.getElementById('apiKey').value = Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    function convertCookiesToStorageState(cookieEditorJson) {
-      const cookies = JSON.parse(cookieEditorJson);
-
-      if (!Array.isArray(cookies)) {
-        throw new Error('O JSON deve ser um array de cookies. Verifique se exportou corretamente do Cookie-Editor.');
-      }
-
-      const sameSiteMap = {
-        'lax': 'Lax',
-        'strict': 'Strict',
-        'none': 'None',
-        'no_restriction': 'None',
-        'unspecified': 'None'
-      };
-
-      const playwrightCookies = cookies
-        .filter(c =>
-          c.domain && (
-            c.domain.includes('instagram.com') ||
-            c.domain.includes('facebook.com')
-          )
-        )
-        .map(cookie => ({
-          name: cookie.name,
-          value: cookie.value,
-          domain: cookie.domain,
-          path: cookie.path || '/',
-          expires: cookie.expirationDate || -1,
-          httpOnly: cookie.httpOnly || false,
-          secure: cookie.secure || false,
-          sameSite: sameSiteMap[(cookie.sameSite || 'none').toLowerCase()] || 'None'
-        }));
-
-      if (playwrightCookies.length === 0) {
-        throw new Error('Nenhum cookie do Instagram encontrado. Certifique-se de estar na pagina do Instagram ao exportar.');
-      }
-
-      const essentialCookies = ['sessionid', 'csrftoken', 'ds_user_id'];
-      const found = essentialCookies.filter(name =>
-        playwrightCookies.some(c => c.name === name)
-      );
-
-      if (found.length < 2) {
-        throw new Error(`Cookies essenciais ausentes. Encontrados: ${found.join(', ')}. Certifique-se de estar logado no Instagram.`);
-      }
-
-      return {
-        cookies: playwrightCookies,
-        origins: []
-      };
-    }
-
-    function showError(msg) {
-      const el = document.getElementById('error');
+    function showError(id, msg) {
+      const el = document.getElementById(id);
       el.textContent = msg;
       el.classList.add('visible');
     }
 
-    function hideError() {
-      document.getElementById('error').classList.remove('visible');
+    function hideError(id) {
+      document.getElementById(id).classList.remove('visible');
     }
 
-    function setLoading(loading) {
-      const btn = document.getElementById('saveBtn');
+    function setBtn(id, loading, text, loadingText) {
+      const btn = document.getElementById(id);
       if (loading) {
         btn.disabled = true;
-        btn.innerHTML = '<span class="loading"></span>Salvando na Railway...';
+        btn.innerHTML = `<span class="loading"></span>${loadingText}`;
       } else {
         btn.disabled = false;
-        btn.textContent = 'Salvar na Railway';
+        btn.textContent = text;
       }
     }
 
+    // ===== ETAPA 1: SALVAR VARIAVEIS =====
     async function saveToRailway() {
-      hideError();
+      hideError('error');
 
       const token = document.getElementById('railwayToken').value.trim();
-      const cookiesRaw = document.getElementById('cookies').value.trim();
       const rapidApiKey = document.getElementById('rapidApiKey').value.trim();
       const apiKey = document.getElementById('apiKey').value.trim();
       const proxyHost = document.getElementById('proxyHost').value.trim();
@@ -431,137 +210,117 @@
       const proxyUser = document.getElementById('proxyUser').value.trim();
       const proxyPass = document.getElementById('proxyPass').value.trim();
 
-      // Validacoes
-      if (!token) {
-        showError('Informe o Token do Projeto Railway.');
-        return;
-      }
+      if (!token) { showError('error', 'Informe o Token do Projeto Railway.'); return; }
+      if (!rapidApiKey) { showError('error', 'Informe a RapidAPI Key.'); return; }
+      if (!apiKey) { showError('error', 'Informe ou gere uma API Key.'); return; }
 
-      if (!cookiesRaw) {
-        showError('Cole o JSON dos cookies do Instagram.');
-        return;
-      }
+      const variables = { RAPIDAPI_KEY: rapidApiKey, API_KEY: apiKey };
+      if (proxyHost) variables.PROXY_HOST = proxyHost;
+      if (proxyPort) variables.PROXY_PORT = proxyPort;
+      if (proxyUser) variables.PROXY_USER = proxyUser;
+      if (proxyPass) variables.PROXY_PASS = proxyPass;
 
-      if (!rapidApiKey) {
-        showError('Informe a RapidAPI Key.');
-        return;
-      }
-
-      if (!apiKey) {
-        showError('Informe ou gere uma API Key.');
-        return;
-      }
-
-      // Converter cookies
-      let storageState;
-      try {
-        storageState = convertCookiesToStorageState(cookiesRaw);
-      } catch (e) {
-        showError(e.message);
-        return;
-      }
-
-      // Gerar base64
-      const storageStateJson = JSON.stringify(storageState);
-      const base64 = btoa(unescape(encodeURIComponent(storageStateJson)));
-
-      // Montar variaveis
-      const envVars = {
-        INSTAGRAM_AUTH_DATA: base64,
-        RAPIDAPI_KEY: rapidApiKey,
-        API_KEY: apiKey
-      };
-
-      if (proxyHost) envVars.PROXY_HOST = proxyHost;
-      if (proxyPort) envVars.PROXY_PORT = proxyPort;
-      if (proxyUser) envVars.PROXY_USER = proxyUser;
-      if (proxyPass) envVars.PROXY_PASS = proxyPass;
-
-      setLoading(true);
+      setBtn('saveBtn', true, 'Salvar na Railway', 'Salvando na Railway...');
 
       try {
         const res = await fetch('/api/setup-railway', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, variables: envVars })
+          body: JSON.stringify({ token, variables })
         });
-
         const data = await res.json();
+        if (!data.success) throw new Error(data.error);
 
-        if (!data.success) {
-          throw new Error(data.error);
-        }
-
-        document.getElementById('resultBanner').textContent =
-          `${data.saved.length} variaveis salvas na Railway com sucesso!`;
-
-        document.getElementById('savedVars').innerHTML =
-          data.saved.map(n => `<span>${n}</span>`).join('<br>');
-
-        document.getElementById('resultSection').classList.add('visible');
-
-        // Mostrar etapa de login
-        document.getElementById('loginSection').style.display = 'block';
-        document.getElementById('loginSection').scrollIntoView({ behavior: 'smooth' });
+        document.getElementById('savedVars').innerHTML = data.saved.map(n => `<span>${n}</span>`).join('<br>');
+        document.getElementById('step1Result').classList.remove('hidden');
+        document.getElementById('loginSection').classList.remove('hidden');
+        document.getElementById('step1Result').scrollIntoView({ behavior: 'smooth' });
 
       } catch (e) {
-        showError(`Erro ao salvar na Railway: ${e.message}`);
+        showError('error', `Erro: ${e.message}`);
       } finally {
-        setLoading(false);
+        setBtn('saveBtn', false, 'Salvar na Railway', '');
       }
     }
 
-    async function doInstagramLogin() {
-      const loginError = document.getElementById('loginError');
-      loginError.classList.remove('visible');
+    // ===== ETAPA 2: LOGIN INSTAGRAM =====
+    async function doLogin() {
+      hideError('loginError');
 
+      const username = document.getElementById('igUsername').value.trim();
       const password = document.getElementById('igPassword').value;
       const token = document.getElementById('railwayToken').value.trim();
 
-      if (!password) {
-        loginError.textContent = 'Digite sua senha do Instagram.';
-        loginError.classList.add('visible');
-        return;
-      }
+      if (!username) { showError('loginError', 'Informe o username do Instagram.'); return; }
+      if (!password) { showError('loginError', 'Informe a senha do Instagram.'); return; }
 
-      const btn = document.getElementById('loginBtn');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="loading"></span>Fazendo login no Instagram... (pode levar ate 1 min)';
+      setBtn('loginBtn', true, 'Fazer Login no Instagram', 'Fazendo login... (pode levar ate 1 min)');
 
       try {
         const res = await fetch('/api/instagram-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, password })
+          body: JSON.stringify({ token, username, password })
         });
+        const data = await res.json();
 
-        // Se retornou imagem, é screenshot de erro
-        const contentType = res.headers.get('Content-Type');
-        if (contentType && contentType.includes('image')) {
-          loginError.textContent = 'Login falhou. Verifique sua senha ou se o Instagram pede verificacao extra (2FA, SMS, etc).';
-          loginError.classList.add('visible');
+        if (data.need2fa) {
+          // Mostrar campo de 2FA
+          document.getElementById('tfaSection').classList.remove('hidden');
+          document.getElementById('tfaCode').focus();
+          document.getElementById('tfaSection').scrollIntoView({ behavior: 'smooth' });
           return;
         }
 
-        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
 
-        if (!data.success) {
-          throw new Error(data.error);
-        }
-
-        document.getElementById('loginResult').classList.add('visible');
-        document.getElementById('loginResultBanner').textContent = data.message;
-
-        // Limpar campo de senha
-        document.getElementById('igPassword').value = '';
+        // Login OK sem 2FA
+        showLoginSuccess();
 
       } catch (e) {
-        loginError.textContent = `Erro: ${e.message}`;
-        loginError.classList.add('visible');
+        showError('loginError', `Erro: ${e.message}`);
       } finally {
-        btn.disabled = false;
-        btn.textContent = 'Ativar Sessao';
+        setBtn('loginBtn', false, 'Fazer Login no Instagram', '');
+        // Limpar senha
+        document.getElementById('igPassword').value = '';
       }
+    }
+
+    // ===== 2FA =====
+    async function submit2FA() {
+      hideError('tfaError');
+
+      const code = document.getElementById('tfaCode').value.trim();
+      const token = document.getElementById('railwayToken').value.trim();
+
+      if (!code || code.length < 6) { showError('tfaError', 'Digite o codigo de 6 digitos.'); return; }
+
+      setBtn('tfaBtn', true, 'Confirmar Codigo', 'Verificando codigo...');
+
+      try {
+        const res = await fetch('/api/instagram-2fa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, code })
+        });
+        const data = await res.json();
+
+        if (!data.success) throw new Error(data.error);
+
+        showLoginSuccess();
+
+      } catch (e) {
+        showError('tfaError', `Erro: ${e.message}`);
+      } finally {
+        setBtn('tfaBtn', false, 'Confirmar Codigo', '');
+      }
+    }
+
+    function showLoginSuccess() {
+      document.getElementById('loginSection').classList.add('hidden');
+      document.getElementById('tfaSection').classList.add('hidden');
+      document.getElementById('finalResult').classList.remove('hidden');
+      document.getElementById('finalResult').scrollIntoView({ behavior: 'smooth' });
     }
   </script>
 </body>

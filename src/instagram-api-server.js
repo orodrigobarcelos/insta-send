@@ -218,10 +218,10 @@ app.post('/api/start-visual-login', async (req, res) => {
   }
 });
 
-// Concluir login visual e salvar sessao (sem auth)
+// Concluir login visual e salvar tudo na Railway (vars + sessao) em um unico deploy
 app.post('/api/finish-visual-login', async (req, res) => {
   try {
-    const { token } = req.body;
+    const { token, variables } = req.body;
 
     if (!visualLoginSession) {
       return res.status(400).json({ success: false, error: 'Nenhuma sessao de login ativa.' });
@@ -241,7 +241,6 @@ app.post('/api/finish-visual-login', async (req, res) => {
     });
 
     if (isStillOnLogin) {
-      // Reativar timeout
       visualLoginSession.timeout = setTimeout(clearVisualLogin, 600000);
       return res.status(400).json({
         success: false,
@@ -249,15 +248,73 @@ app.post('/api/finish-visual-login', async (req, res) => {
       });
     }
 
-    console.log('Login concluido! Salvando sessao...');
+    console.log('Login concluido! Capturando sessao...');
     const railwayToken = token || visualLoginSession.token;
-    if (railwayToken) await saveSessionToRailway(context, railwayToken);
+
+    // Capturar storageState
+    const { getAuthFilePath } = require('./instagram-auth-state');
+    const fs = require('fs');
+    const AUTH_FILE = getAuthFilePath();
+    const storageState = await context.storageState();
+    fs.writeFileSync(AUTH_FILE, JSON.stringify(storageState));
+    const authBase64 = Buffer.from(JSON.stringify(storageState)).toString('base64');
+
+    // Montar todas as variaveis (env + auth) para salvar de uma vez
+    const allVars = { ...(variables || {}), INSTAGRAM_AUTH_DATA: authBase64 };
+
+    // Salvar tudo na Railway em uma unica chamada
+    const savedNames = [];
+    if (railwayToken) {
+      const RAILWAY_API = 'https://backboard.railway.com/graphql/v2';
+
+      const tokenRes = await fetch(RAILWAY_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Project-Access-Token': railwayToken },
+        body: JSON.stringify({ query: '{ projectToken { projectId environmentId } }' })
+      });
+      const tokenData = await tokenRes.json();
+      if (tokenData.errors) throw new Error('Token invalido: ' + tokenData.errors.map(e => e.message).join(', '));
+
+      const { projectId, environmentId } = tokenData.data.projectToken;
+
+      const servicesRes = await fetch(RAILWAY_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Project-Access-Token': railwayToken },
+        body: JSON.stringify({
+          query: 'query($projectId: String!) { project(id: $projectId) { services { edges { node { id } } } } }',
+          variables: { projectId }
+        })
+      });
+      const servicesData = await servicesRes.json();
+      const serviceId = servicesData.data?.project?.services?.edges?.[0]?.node?.id || null;
+
+      for (const [name, value] of Object.entries(allVars)) {
+        const input = { projectId, environmentId, name, value };
+        if (serviceId) input.serviceId = serviceId;
+
+        await fetch(RAILWAY_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Project-Access-Token': railwayToken },
+          body: JSON.stringify({
+            query: 'mutation($input: VariableUpsertInput!) { variableUpsert(input: $input) }',
+            variables: { input }
+          })
+        });
+        savedNames.push(name);
+      }
+
+      console.log('Todas as variaveis salvas na Railway:', savedNames.join(', '));
+    }
 
     await browser.close();
     visualLoginSession = null;
     vncSessionToken = null;
 
-    return res.json({ success: true, message: 'Login concluido e sessao salva na Railway!' });
+    return res.json({
+      success: true,
+      message: 'Login concluido e tudo salvo na Railway!',
+      saved: savedNames
+    });
 
   } catch (error) {
     clearVisualLogin();

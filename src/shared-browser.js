@@ -7,6 +7,10 @@ let context = null;
 let isInitializing = false;
 let initPromise = null;
 
+// Mutex: fila de operacoes para garantir que apenas uma roda por vez
+const queue = [];
+let busy = false;
+
 /**
  * Inicializa o browser persistente com sessao autenticada.
  * Se ja estiver inicializado, retorna imediatamente.
@@ -52,11 +56,42 @@ async function _doInit() {
 }
 
 /**
+ * Adquire o lock do mutex. Retorna uma promise que resolve
+ * quando for a vez desta operacao executar.
+ */
+function acquireLock() {
+  return new Promise((resolve) => {
+    if (!busy) {
+      busy = true;
+      resolve();
+    } else {
+      queue.push(resolve);
+      console.log(`[shared-browser] Operacao na fila (${queue.length} aguardando)`);
+    }
+  });
+}
+
+/**
+ * Libera o lock do mutex. Se houver operacoes na fila,
+ * a proxima e desbloqueada automaticamente.
+ */
+function releaseLock() {
+  if (queue.length > 0) {
+    const next = queue.shift();
+    console.log(`[shared-browser] Liberando proxima operacao (${queue.length} ainda aguardando)`);
+    next();
+  } else {
+    busy = false;
+  }
+}
+
+/**
  * Retorna uma nova page do browser persistente.
- * Inicializa o browser se necessario (auto-recovery).
+ * Aguarda o mutex antes de criar a page (uma operacao por vez).
  * Ja aplica setupResourceBlocking na page.
  */
 async function getPage() {
+  await acquireLock();
   await init();
   const page = await context.newPage();
   await setupResourceBlocking(page);
@@ -64,7 +99,7 @@ async function getPage() {
 }
 
 /**
- * Fecha uma page apos uso.
+ * Fecha uma page apos uso e libera o mutex.
  */
 async function releasePage(page) {
   try {
@@ -73,6 +108,8 @@ async function releasePage(page) {
     }
   } catch (e) {
     // Page ja fechada ou browser desconectou
+  } finally {
+    releaseLock();
   }
 }
 

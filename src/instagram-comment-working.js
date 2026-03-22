@@ -53,8 +53,8 @@ async function commentOnPost(shortcode, comment, options = {}) {
     await handleInstagramChallenge(page);
 
     try {
-      await page.waitForSelector('article', { timeout: 180000 });
-    } catch (e) { console.log('Artigo não detectado imediatamente...'); }
+      await page.waitForSelector('textarea, article', { timeout: 15000 });
+    } catch (e) { console.log('Seletores iniciais nao detectados em 15s, prosseguindo...'); }
 
     // 2. Encontrar Campo de Comentário
     console.log('Procurando campo de comentário...');

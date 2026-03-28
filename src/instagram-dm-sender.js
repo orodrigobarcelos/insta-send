@@ -233,7 +233,7 @@ async function sendMessageToConversation(conversationId, message, options = {}) 
       await page.goto(igMeUrl, { waitUntil: 'commit' });
 
       console.log('Aguardando redirect do ig.me para direct/t/...');
-      await page.waitForURL('**/direct/t/**', { timeout: 30000 });
+      await page.waitForURL('**/direct/t/**', { timeout: 60000 });
       console.log(`Redirect completo: ${page.url()}`);
 
       // Extrair conversationId do redirect para cache

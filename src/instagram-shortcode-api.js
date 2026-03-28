@@ -6,6 +6,10 @@ require('dotenv').config();
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 const RAPIDAPI_HOST = 'instagram-scraper-stable-api.p.rapidapi.com';
 
+// Configuração da HikerAPI
+const HIKERAPI_KEY = process.env.HIKERAPI_KEY;
+const SHORTCODE_API_PROVIDER = process.env.SHORTCODE_API_PROVIDER || 'rapidapi';
+
 /**
  * Obtém o shortcode do primeiro post do usuário via RapidAPI (Scraper Stable)
  * @param {string} username - Nome de usuário do Instagram
@@ -163,6 +167,69 @@ async function getShortcodeWithPlaywright(username) {
   }
 }
 
+/**
+ * Obtém o shortcode do primeiro post do usuário via HikerAPI
+ * @param {string} username - Nome de usuário do Instagram
+ * @returns {Promise<Object>} - Objeto com resultado da operação
+ */
+async function getFirstPostShortcodeViaHikerAPI(username) {
+  try {
+    console.log(`Buscando dados do perfil para: @${username} via HikerAPI`);
+
+    const url = `https://api.hikerapi.com/a2/user?username=${encodeURIComponent(username)}`;
+
+    const response = await axios.request({
+      method: 'GET',
+      url: url,
+      headers: {
+        'x-access-key': HIKERAPI_KEY,
+        'accept': 'application/json'
+      }
+    });
+
+    // Extrair shortcode: graphql.user.edge_owner_to_timeline_media.edges[0].node.shortcode
+    const edges = response.data?.graphql?.user?.edge_owner_to_timeline_media?.edges;
+
+    if (edges && edges.length > 0) {
+      const firstPost = edges[0].node;
+      const shortcode = firstPost.shortcode;
+
+      console.log(`Shortcode encontrado via HikerAPI: ${shortcode}`);
+
+      return {
+        success: true,
+        shortcode,
+        postUrl: `https://www.instagram.com/p/${shortcode}/`,
+        caption: firstPost.edge_media_to_caption?.edges?.[0]?.node?.text || '',
+        postData: firstPost
+      };
+    } else {
+      console.log(`Nenhuma postagem encontrada via HikerAPI para @${username}. Tentando fallback com Playwright...`);
+      return await getShortcodeWithPlaywright(username);
+    }
+  } catch (error) {
+    console.error('Erro ao buscar dados do perfil via HikerAPI:', error.message);
+    if (error.response) console.error('Detalhes do erro HikerAPI:', error.response.data);
+
+    console.log('Tentando fallback com Playwright...');
+    return await getShortcodeWithPlaywright(username);
+  }
+}
+
+/**
+ * Obtém o shortcode usando o provider configurado (RapidAPI ou HikerAPI)
+ * @param {string} username - Nome de usuário do Instagram
+ * @returns {Promise<Object>} - Objeto com resultado da operação
+ */
+async function getFirstPostShortcodeAuto(username) {
+  if (SHORTCODE_API_PROVIDER === 'hikerapi' && HIKERAPI_KEY) {
+    return await getFirstPostShortcodeViaHikerAPI(username);
+  }
+  return await getFirstPostShortcode(username);
+}
+
 module.exports = {
-  getFirstPostShortcode
+  getFirstPostShortcode,
+  getFirstPostShortcodeViaHikerAPI,
+  getFirstPostShortcodeAuto
 };

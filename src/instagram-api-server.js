@@ -7,7 +7,7 @@ const { sendMessageByUsername } = require('./instagram-user-id');
 const { commentOnFirstPost } = require('./instagram-post-commenter');
 // Usar a versão robusta da função commentOnPost
 const { commentOnPost } = require('./instagram-comment-working');
-const { getFirstPostShortcode } = require('./instagram-shortcode-api');
+const { getFirstPostShortcode, getFirstPostShortcodeAuto } = require('./instagram-shortcode-api');
 const { loadAuthFromEnv } = require('./auth-loader');
 const sharedBrowser = require('./shared-browser');
 require('dotenv').config();
@@ -22,7 +22,12 @@ const API_KEY = process.env.API_KEY;
 
 // Avisos de configuracao
 if (!API_KEY) console.warn('AVISO: API_KEY nao definida. Endpoints nao estarao protegidos.');
-if (!process.env.RAPIDAPI_KEY) console.warn('AVISO: RAPIDAPI_KEY nao definida. Funcoes de busca de usuario/shortcode podem falhar.');
+const shortcodeProvider = process.env.SHORTCODE_API_PROVIDER || 'rapidapi';
+if (shortcodeProvider === 'hikerapi' && !process.env.HIKERAPI_KEY) {
+  console.warn('AVISO: HIKERAPI_KEY nao definida. Funcoes de busca de shortcode podem falhar.');
+} else if (shortcodeProvider === 'rapidapi' && !process.env.RAPIDAPI_KEY) {
+  console.warn('AVISO: RAPIDAPI_KEY nao definida. Funcoes de busca de shortcode podem falhar.');
+}
 
 // Middleware
 app.use(cors());
@@ -342,7 +347,7 @@ app.get('/api/login-status', (req, res) => {
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
-    configured: !!API_KEY && !!process.env.RAPIDAPI_KEY
+    configured: !!API_KEY && !!(process.env.RAPIDAPI_KEY || process.env.HIKERAPI_KEY)
   });
 });
 
@@ -518,10 +523,10 @@ app.post('/api/comment-via-rapidapi', authMiddleware, async (req, res) => {
 
     // Se não tiver shortcode, mas tiver username, buscar o shortcode
     if (!shortcode && username) {
-      console.log(`Recebida solicitação para comentar via RapidAPI no post de @${username}: "${comment}"`);
-      console.log(`Obtendo shortcode para @${username} via RapidAPI...`);
+      console.log(`Recebida solicitação para comentar no post de @${username}: "${comment}"`);
+      console.log(`Obtendo shortcode para @${username} via ${process.env.SHORTCODE_API_PROVIDER || 'rapidapi'}...`);
 
-      const shortcodeResult = await getFirstPostShortcode(username);
+      const shortcodeResult = await getFirstPostShortcodeAuto(username);
 
       if (!shortcodeResult.success) {
         return res.status(400).json({

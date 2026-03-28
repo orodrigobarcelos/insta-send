@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SAV - Instagram AI Agent</title>
+  <link rel="icon" type="image/png" href="/logo.png">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -44,6 +45,28 @@
     .field-row-4 { display: grid; grid-template-columns: 1fr 1fr 2fr 1fr; gap: 12px; }
     .api-key-row { display: flex; gap: 8px; }
     .api-key-row input { flex: 1; margin-bottom: 0; }
+    .provider-row { display: flex; gap: 10px; align-items: stretch; margin-bottom: 16px; }
+    .provider-toggle {
+      display: flex; background: #0a0a0a; border: 1px solid #333;
+      border-radius: 8px; padding: 3px; gap: 3px; flex-shrink: 0;
+    }
+    .provider-toggle input[type="radio"] {
+      position: absolute; width: 0; height: 0; opacity: 0;
+      pointer-events: none; margin: 0; padding: 0;
+    }
+    .provider-toggle label {
+      display: flex; align-items: center; justify-content: center;
+      padding: 7px 16px; border-radius: 6px; font-size: 13px;
+      font-weight: 500; color: #777; cursor: pointer;
+      transition: all 0.2s ease; user-select: none; white-space: nowrap;
+      line-height: 1; margin: 0;
+    }
+    .provider-toggle label:hover { color: #aaa; }
+    .provider-toggle input[type="radio"]:checked + label {
+      background: #2563eb; color: #fff;
+      box-shadow: 0 1px 4px rgba(37, 99, 235, 0.3);
+    }
+    .provider-row input[type="text"] { flex: 1; margin-bottom: 0; }
     .btn {
       background: #2563eb; color: #fff; border: none; border-radius: 8px;
       padding: 12px 24px; font-size: 15px; font-weight: 600; cursor: pointer; width: 100%;
@@ -106,8 +129,20 @@
       <label for="railwayToken">Token do Projeto Railway</label>
       <input type="password" id="railwayToken" placeholder="Cole o token gerado em Project Settings > Tokens">
 
-      <label for="rapidApiKey">RapidAPI Key</label>
-      <input type="text" id="rapidApiKey" placeholder="Sua chave da RapidAPI">
+      <label>Provedor de API Instagram</label>
+      <div class="provider-row">
+        <div class="provider-toggle">
+          <input type="radio" id="providerRapidapi" name="apiProviderToggle" value="rapidapi" checked onchange="document.getElementById('apiProvider').value='rapidapi'; updateProviderPlaceholder();">
+          <label for="providerRapidapi">RapidAPI</label>
+          <input type="radio" id="providerHikerapi" name="apiProviderToggle" value="hikerapi" onchange="document.getElementById('apiProvider').value='hikerapi'; updateProviderPlaceholder();">
+          <label for="providerHikerapi">HikerAPI</label>
+        </div>
+        <select id="apiProvider" style="display:none;">
+          <option value="rapidapi">RapidAPI</option>
+          <option value="hikerapi">HikerAPI</option>
+        </select>
+        <input type="text" id="shortcodeApiKey" placeholder="Sua chave da RapidAPI">
+      </div>
 
       <label for="apiKey">API Key (protege seus dados)</label>
       <div class="api-key-row" style="margin-bottom: 16px;">
@@ -171,6 +206,12 @@
   </div>
 
   <script>
+    function updateProviderPlaceholder() {
+      const provider = document.getElementById('apiProvider').value;
+      const input = document.getElementById('shortcodeApiKey');
+      input.placeholder = provider === 'hikerapi' ? 'Sua chave da HikerAPI' : 'Sua chave da RapidAPI';
+    }
+
     function generateApiKey() {
       const array = new Uint8Array(32);
       crypto.getRandomValues(array);
@@ -211,14 +252,20 @@
 
     // Coleta as variaveis do formulario
     function getFormVariables() {
-      const rapidApiKey = document.getElementById('rapidApiKey').value.trim();
+      const provider = document.getElementById('apiProvider').value;
+      const shortcodeApiKey = document.getElementById('shortcodeApiKey').value.trim();
       const apiKey = document.getElementById('apiKey').value.trim();
       const proxyHost = document.getElementById('proxyHost').value.trim();
       const proxyPort = document.getElementById('proxyPort').value.trim();
       const proxyUser = document.getElementById('proxyUser').value.trim();
       const proxyPass = document.getElementById('proxyPass').value.trim();
 
-      const variables = { RAPIDAPI_KEY: rapidApiKey, API_KEY: apiKey };
+      const variables = { API_KEY: apiKey, SHORTCODE_API_PROVIDER: provider };
+      if (provider === 'hikerapi') {
+        variables.HIKERAPI_KEY = shortcodeApiKey;
+      } else {
+        variables.RAPIDAPI_KEY = shortcodeApiKey;
+      }
       if (proxyHost) variables.PROXY_HOST = proxyHost;
       if (proxyPort) variables.PROXY_PORT = proxyPort;
       if (proxyUser) variables.PROXY_USER = proxyUser;
@@ -231,11 +278,12 @@
       hideError('error');
 
       const token = document.getElementById('railwayToken').value.trim();
-      const rapidApiKey = document.getElementById('rapidApiKey').value.trim();
+      const shortcodeApiKey = document.getElementById('shortcodeApiKey').value.trim();
       const apiKey = document.getElementById('apiKey').value.trim();
+      const provider = document.getElementById('apiProvider').value;
 
       if (!token) { showError('error', 'Informe o Token do Projeto Railway.'); return; }
-      if (!rapidApiKey) { showError('error', 'Informe a RapidAPI Key.'); return; }
+      if (!shortcodeApiKey) { showError('error', `Informe a chave da ${provider === 'hikerapi' ? 'HikerAPI' : 'RapidAPI'}.`); return; }
       if (!apiKey) { showError('error', 'Informe ou gere uma API Key.'); return; }
 
       document.getElementById('step1Section').style.opacity = '0.5';

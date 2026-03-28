@@ -157,26 +157,23 @@ async function sendMessageByUsername(username, message, options = {}) {
     userId = getUserIdFromCache(username);
   }
 
-  // Se não fornecido e não encontrado no cache, buscar da API
-  if (!userId) {
-    userId = await getUserId(username);
-
-    // Se encontrado na API, salvar no cache
-    if (userId) {
-      saveUserIdToCache(username, userId);
-    } else {
-      return {
-        success: false,
-        error: `Não foi possível obter o ID do usuário ${username}`
-      };
-    }
-  } else {
-    console.log(`ID fornecido ou em cache para ${username}: ${userId}`);
+  // Se tem userId (fornecido ou do cache), usar direct/t/ direto
+  if (userId) {
+    console.log(`ID encontrado para ${username}: ${userId} — usando direct/t/`);
+    return await sendMessageToConversation(userId, message, options);
   }
 
-  // Enviar mensagem usando o ID obtido
-  console.log(`Enviando mensagem para ${username} (ID: ${userId})...`);
-  return await sendMessageToConversation(userId, message, options);
+  // Sem cache: usar ig.me/m/username (sem RapidAPI)
+  console.log(`Sem ID em cache para ${username} — usando ig.me/m/${username}`);
+  const result = await sendMessageToConversation(null, message, { ...options, username });
+
+  // Se deu certo e temos o conversationId do redirect, cachear pra próxima vez
+  if (result.success && result.conversationId) {
+    saveUserIdToCache(username, result.conversationId);
+    console.log(`ConversationId ${result.conversationId} salvo no cache para ${username}`);
+  }
+
+  return result;
 }
 
 // Exportar funções

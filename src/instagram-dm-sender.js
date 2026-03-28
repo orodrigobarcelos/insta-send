@@ -203,7 +203,7 @@ async function sendMessageToConversation(conversationId, message, options = {}) 
     };
   }
 
-  console.log(`Iniciando envio de mensagem para conversa ID: ${conversationId}...`);
+  console.log(`Iniciando envio de mensagem ${conversationId ? `para conversa ID: ${conversationId}` : `para @${options.username} via ig.me`}...`);
 
   // Se page foi fornecida externamente (browser persistente), usar ela
   const externalPage = options.page || null;
@@ -225,10 +225,28 @@ async function sendMessageToConversation(conversationId, message, options = {}) 
   }
 
   try {
-    // Navegar diretamente para a conversa usando o ID
-    const conversationUrl = `https://www.instagram.com/direct/t/${conversationId}/`;
-    console.log(`Acessando a conversa: ${conversationUrl}`);
-    await page.goto(conversationUrl);
+    // Navegar para a conversa: via ig.me (username) ou direct/t/ (conversationId)
+    if (options.username && !conversationId) {
+      // Fluxo ig.me: navega e espera redirect para direct/t/
+      const igMeUrl = `https://ig.me/m/${options.username}`;
+      console.log(`Acessando conversa via ig.me: ${igMeUrl}`);
+      await page.goto(igMeUrl, { waitUntil: 'commit' });
+
+      console.log('Aguardando redirect do ig.me para direct/t/...');
+      await page.waitForURL('**/direct/t/**', { timeout: 30000 });
+      console.log(`Redirect completo: ${page.url()}`);
+
+      // Extrair conversationId do redirect para cache
+      const urlMatch = page.url().match(/\/direct\/t\/(\d+)/);
+      if (urlMatch && urlMatch[1]) {
+        conversationId = urlMatch[1];
+        console.log(`ConversationId extraído do redirect: ${conversationId}`);
+      }
+    } else {
+      const conversationUrl = `https://www.instagram.com/direct/t/${conversationId}/`;
+      console.log(`Acessando a conversa: ${conversationUrl}`);
+      await page.goto(conversationUrl);
+    }
 
     // Tratar telas de verificacao do Instagram
     await page.waitForTimeout(5000);
@@ -266,6 +284,7 @@ async function sendMessageToConversation(conversationId, message, options = {}) 
     return {
       success: true,
       message: `Mensagem enviada para conversa ${conversationId}`,
+      conversationId: conversationId || null,
       verified: messageFound
     };
 

@@ -125,48 +125,98 @@ async function commentOnPost(shortcode, comment, options = {}) {
 
     console.log(`Digitando: "${comment}"`);
 
-    // Usar type() em vez de fill() — dispara eventos React corretamente
+    // Usar type() — dispara eventos React corretamente
     await page.keyboard.type(comment, { delay: 30 });
+    await page.waitForTimeout(1000);
 
-    await page.waitForTimeout(2000);
+    // Verificar se o texto entrou no campo
+    const fieldValue = await page.evaluate(() => {
+      const ta = document.querySelector('textarea');
+      return ta ? ta.value : '(textarea não encontrada)';
+    });
+    console.log(`Valor no campo após digitar: "${fieldValue}" (${fieldValue.length} chars)`);
 
-    // 4. Clicar em Publicar
-    console.log('Procurando botão Publicar...');
-
-    const buttonSelectors = [
-      'div[role="button"]:has-text("Publicar")',
-      'button:has-text("Publicar")',
-      'div[role="button"]:has-text("Postar")',
-      'button:has-text("Postar")',
-      'div[role="button"]:has-text("Post")',
-      'button:has-text("Post")',
-      'form button[type="submit"]',
-      'button[type="submit"]',
-      'div.x1i10hfl[role="button"]'
-    ];
-
-    let postButton = null;
-    for (const selector of buttonSelectors) {
-      postButton = await page.$(selector);
-      if (postButton) {
-        console.log(`Botão encontrado: ${selector}`);
-        break;
+    if (!fieldValue || fieldValue.length === 0) {
+      console.log('ALERTA: keyboard.type() não inseriu texto! Tentando fallback com fill()...');
+      if (activeField) {
+        await activeField.fill(comment);
+        await page.waitForTimeout(500);
       }
     }
 
-    if (!postButton) {
-      // Última tentativa: evaluate
-      const handle = await page.evaluateHandle(() => {
-        const els = Array.from(document.querySelectorAll('div[role="button"], button'));
-        return els.find(el => ['publicar', 'postar', 'post'].includes(el.textContent.trim().toLowerCase()));
-      });
-      if (handle) postButton = handle.asElement();
-    }
+    await page.waitForTimeout(1000);
 
-    if (!postButton) throw new Error('Botão de publicar não encontrado');
-
-    await postButton.click();
+    // 4. Submeter o comentário
+    // Estratégia 1: Enter (funciona na maioria das versões do Instagram web)
+    console.log('Tentando submeter via Enter...');
+    await page.keyboard.press('Enter');
     await page.waitForTimeout(4000);
+
+    // Verificar se funcionou (campo limpo = sucesso)
+    const fieldAfterEnter = await page.evaluate(() => {
+      const ta = document.querySelector('textarea');
+      return ta ? ta.value : '';
+    });
+
+    if (fieldAfterEnter.length > 0) {
+      // Enter não funcionou, tentar clicar no botão
+      console.log('Enter não submeteu. Procurando botão Publicar...');
+
+      const buttonSelectors = [
+        'div[role="button"]:has-text("Publicar")',
+        'button:has-text("Publicar")',
+        'div[role="button"]:has-text("Postar")',
+        'button:has-text("Postar")',
+        'div[role="button"]:has-text("Post")',
+        'button:has-text("Post")',
+        'form button[type="submit"]',
+        'button[type="submit"]'
+      ];
+
+      let postButton = null;
+      for (const selector of buttonSelectors) {
+        postButton = await page.$(selector);
+        if (postButton) {
+          console.log(`Botão encontrado: ${selector}`);
+          break;
+        }
+      }
+
+      if (postButton) {
+        // Tentar click normal
+        await postButton.click({ force: true });
+        await page.waitForTimeout(3000);
+
+        // Se ainda não limpou, tentar via JavaScript
+        const fieldAfterClick = await page.evaluate(() => {
+          const ta = document.querySelector('textarea');
+          return ta ? ta.value : '';
+        });
+
+        if (fieldAfterClick.length > 0) {
+          console.log('Click no botão não funcionou. Tentando via JavaScript...');
+          await page.evaluate(() => {
+            const btns = Array.from(document.querySelectorAll('div[role="button"], button'));
+            const postBtn = btns.find(el =>
+              ['publicar', 'postar', 'post'].includes(el.textContent.trim().toLowerCase())
+            );
+            if (postBtn) {
+              postBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            }
+          });
+          await page.waitForTimeout(4000);
+        }
+      } else {
+        console.log('Botão de publicar não encontrado, tentando form submit...');
+        await page.evaluate(() => {
+          const form = document.querySelector('form');
+          if (form) form.requestSubmit();
+        });
+        await page.waitForTimeout(4000);
+      }
+    } else {
+      console.log('Comentário submetido via Enter com sucesso!');
+    }
 
     // 5. Verificar Sucesso e Erros
 

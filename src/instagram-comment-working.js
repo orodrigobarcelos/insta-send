@@ -62,6 +62,10 @@ async function commentOnPost(shortcode, comment, options = {}) {
     const commentSelectors = [
       'textarea[placeholder="Adicione um comentário..."]',
       'textarea[aria-label="Adicione um comentário..."]',
+      'textarea[placeholder="Add a comment…"]',
+      'textarea[aria-label="Add a comment…"]',
+      'textarea[placeholder="Add a comment..."]',
+      'textarea[aria-label="Add a comment..."]',
       'form[role="presentation"] textarea',
       'textarea'
     ];
@@ -96,28 +100,33 @@ async function commentOnPost(shortcode, comment, options = {}) {
       throw new Error('Campo de comentário não encontrado');
     }
 
-    // 3. Interagir e Digitar (Lidar com Detached Element)
+    // 3. Clicar no campo para ativar (React recria o textarea ao focar)
     try {
       await commentField.click();
-      await page.waitForTimeout(1000); // Wait for react re-render
+      await page.waitForTimeout(1500);
     } catch (e) {
       console.log('Erro ao clicar (pode já estar focado/detached):', e.message);
     }
 
+    // Re-query do textarea após React re-render (elemento original pode ter sido destruído)
+    let activeField = null;
+    if (workingSelector) {
+      activeField = await page.$(workingSelector);
+    }
+    if (!activeField) {
+      activeField = await page.$('textarea');
+    }
+
+    // Garantir foco no campo atualizado
+    if (activeField) {
+      await activeField.click();
+      await page.waitForTimeout(500);
+    }
+
     console.log(`Digitando: "${comment}"`);
 
-    if (workingSelector) {
-      // Mais seguro: re-query do seletor
-      await page.fill(workingSelector, comment);
-    } else {
-      // Fallback: digitar no teclado (foco deve estar lá)
-      try {
-        await commentField.fill(comment);
-      } catch (e) {
-        console.log('Elemento detached, tentando keyboard stroke...');
-        await page.keyboard.type(comment);
-      }
-    }
+    // Usar type() em vez de fill() — dispara eventos React corretamente
+    await page.keyboard.type(comment, { delay: 30 });
 
     await page.waitForTimeout(2000);
 
@@ -129,9 +138,11 @@ async function commentOnPost(shortcode, comment, options = {}) {
       'button:has-text("Publicar")',
       'div[role="button"]:has-text("Postar")',
       'button:has-text("Postar")',
+      'div[role="button"]:has-text("Post")',
+      'button:has-text("Post")',
       'form button[type="submit"]',
       'button[type="submit"]',
-      'div.x1i10hfl[role="button"]' // Classe comum
+      'div.x1i10hfl[role="button"]'
     ];
 
     let postButton = null;
@@ -147,7 +158,7 @@ async function commentOnPost(shortcode, comment, options = {}) {
       // Última tentativa: evaluate
       const handle = await page.evaluateHandle(() => {
         const els = Array.from(document.querySelectorAll('div[role="button"], button'));
-        return els.find(el => ['publicar', 'postar'].includes(el.textContent.trim().toLowerCase()));
+        return els.find(el => ['publicar', 'postar', 'post'].includes(el.textContent.trim().toLowerCase()));
       });
       if (handle) postButton = handle.asElement();
     }
